@@ -1,0 +1,34 @@
+{
+  "name": "DigitalArmour — Scam Detector",
+  "short_name": "DigitalArmour",
+  "description": "Detect and report cybercrime scams instantly. India Cyber Crime Helpline: 1930.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06090f",
+  "theme_color": "#00d4aa",
+  "orientation": "portrait-primary",
+  "lang": "en-IN",
+  "categories": ["security", "utilities"],
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan a Suspicious Message",
+      "short_name": "Scan Message",
+      "url": "/",
+      "description": "Paste and scan a suspicious SMS or WhatsApp message for scam detection"
+    }
+  ]
+}

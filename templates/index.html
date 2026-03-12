@@ -329,6 +329,29 @@ footer a{color:var(--teal);text-decoration:none}
 .factor-formula{font-family:var(--mono);font-size:.62rem;color:var(--muted);
   padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;margin-top:8px;line-height:1.6}
 .factor-formula .fv{color:var(--text);font-weight:600}
+
+/* ── HELPLINE INTERACTIVE ── */
+.helpline a{color:inherit;text-decoration:none;transition:opacity .15s}
+.helpline a:hover{opacity:.75;text-decoration:underline}
+.hl-web::before{content:'🌐 '}
+/* ── NEED HELP NOW sidebar card ── */
+.emergency-body{padding:14px;display:flex;flex-direction:column;gap:8px}
+.hl-btn{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;
+  text-decoration:none;transition:all .18s;border:1px solid transparent}
+.hl-btn.call{background:rgba(0,224,150,.08);border-color:rgba(0,224,150,.25);color:var(--green)}
+.hl-btn.call:hover{background:rgba(0,224,150,.18);border-color:rgba(0,224,150,.45);transform:translateY(-1px)}
+.hl-btn.report{background:rgba(33,150,243,.08);border-color:rgba(33,150,243,.25);color:var(--blue)}
+.hl-btn.report:hover{background:rgba(33,150,243,.18);border-color:rgba(33,150,243,.45);transform:translateY(-1px)}
+.hl-btn.cert{background:rgba(245,196,0,.07);border-color:rgba(245,196,0,.22);color:var(--yellow)}
+.hl-btn.cert:hover{background:rgba(245,196,0,.14);border-color:rgba(245,196,0,.4);transform:translateY(-1px)}
+.hl-btn-icon{font-size:1.3rem;flex-shrink:0}
+.hl-btn-main{font-size:.84rem;font-weight:700;font-family:var(--sans);color:inherit}
+.hl-btn-sub{font-size:.63rem;font-family:var(--mono);opacity:.65;margin-top:2px}
+.hl-note{font-size:.67rem;color:var(--muted);line-height:1.5;padding-top:10px;
+  margin-top:2px;border-top:1px solid var(--border);font-style:italic}
+.a-hdr.danger{background:rgba(255,61,90,.06);border-bottom-color:rgba(255,61,90,.18)}
+.a-hdr.danger .a-title{color:var(--red)}
+
 </style>
 </head>
 <body>
@@ -341,8 +364,8 @@ footer a{color:var(--teal);text-decoration:none}
     <div class="logo-name">Digital<span>Armour</span></div>
   </a>
   <div class="hdr-right">
-    <a class="hdr-link" href="https://cybercrime.gov.in" target="_blank">cybercrime.gov.in</a>
-    <a class="hdr-link" href="#">1930</a>
+    <a class="hdr-link" href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer">cybercrime.gov.in</a>
+    <a class="hdr-link" href="tel:1930">📞 1930</a>
     <div class="live-pill"><div class="live-dot"></div>LIVE</div>
   </div>
 </header>
@@ -545,6 +568,27 @@ footer a{color:var(--teal);text-decoration:none}
     <div class="lf">
       <div class="lf-hdr"><div class="lf-t">Recent Detections</div></div>
       <div id="lfItems"></div>
+    </div>
+  </div>
+
+  <div class="a-card">
+    <div class="a-hdr danger">
+      <div class="a-title">🆘 Need Help Now?</div>
+    </div>
+    <div class="emergency-body">
+      <a class="hl-btn call" href="tel:1930">
+        <span class="hl-btn-icon">📞</span>
+        <div><div class="hl-btn-main">Call 1930</div><div class="hl-btn-sub">Cyber Crime Helpline · Free · 24×7</div></div>
+      </a>
+      <a class="hl-btn report" href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer">
+        <span class="hl-btn-icon">🌐</span>
+        <div><div class="hl-btn-main">Report at cybercrime.gov.in</div><div class="hl-btn-sub">Official National Cyber Crime Portal</div></div>
+      </a>
+      <a class="hl-btn cert" href="https://cert-in.org.in" target="_blank" rel="noopener noreferrer">
+        <span class="hl-btn-icon">🔒</span>
+        <div><div class="hl-btn-main">CERT-In Portal</div><div class="hl-btn-sub">cert-in.org.in · Cyber Security Incidents</div></div>
+      </a>
+      <div class="hl-note">Free official government services. Never pay anyone claiming to be from a helpline.</div>
     </div>
   </div>
 
@@ -778,7 +822,7 @@ function renderResult(data, container) {
         <div class="sev SAFE">SAFE</div></div>
       ${f ? buildFactorHTML(f) : ''}
       <div class="safe-body"><div class="safe-tip">💡 ${data.tip}</div></div>
-      <div class="helpline"><span class="hl">Cybercrime Helpline: 1930</span><span class="hl">cybercrime.gov.in</span></div>
+      <div class="helpline"><a class="hl" href="tel:1930">Cybercrime Helpline: 1930</a><a class="hl hl-web" href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer">cybercrime.gov.in</a></div>
     </div>`;
   } else {
     const sc = SC[data.severity]||'high', ic = IC[data.severity]||'🚨';
@@ -808,7 +852,7 @@ function renderResult(data, container) {
       <div class="exp-sec"><div class="sec-lbl" style="margin-bottom:9px">Why This Is A Scam</div><div class="exp-text">${data.explanation}</div></div>
       <div class="act-sec"><div class="sec-lbl" style="margin-bottom:11px">What You Should Do</div><ul class="act-list">${acts}</ul></div>
       ${others}
-      <div class="helpline"><span class="hl">Cybercrime Helpline: 1930</span><span class="hl">cybercrime.gov.in</span><span class="hl">cert-in.org.in</span></div>
+      <div class="helpline"><a class="hl" href="tel:1930">Cybercrime Helpline: 1930</a><a class="hl hl-web" href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer">cybercrime.gov.in</a><a class="hl hl-web" href="https://cert-in.org.in" target="_blank" rel="noopener noreferrer">cert-in.org.in</a></div>
     </div>
 
     <button class="btn-reset" onclick="resetAll()">← Report Another Incident</button>`;

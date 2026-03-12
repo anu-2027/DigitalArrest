@@ -68,8 +68,9 @@ SCAM_PATTERNS = {
             "illegal activity detected":   7,
             "your number is flagged":      6,
             "central bureau":              6,
-            "narcotics":                   5,
-            "national security":           4,
+            # Low alone — context boost raises these when CBI/ED/NCB also present
+            "narcotics":                   2,
+            "national security":           2,
         },
         "explanation": (
             "This is a 'Digital Arrest' scam — one of India's fastest-growing cyber frauds. "
@@ -164,6 +165,8 @@ SCAM_PATTERNS = {
         "severity": "MEDIUM",
         "keywords": {
             "pay processing fee":           10,
+            "pay a processing fee":         10,   # ← variant fix: "pay a processing fee of Rs..."
+            "processing fee":                9,   # ← catches any fee mention
             "send registration fee":        10,
             "claim fee":                    10,
             "kbc winner":                    9,
@@ -176,7 +179,7 @@ SCAM_PATTERNS = {
             "lucky winner":                  8,
             "lottery winner":                8,
             "claim your prize":              7,
-            "prize money":                   7,
+            "prize money":                   8,   # ← raised from 7, strong scam signal
             "lucky draw":                    7,
             "you are selected":              6,
             "you have been selected":        6,
@@ -331,19 +334,144 @@ ISOLATION_PHRASES = {
 
 
 # ═══════════════════════════════════════════════════════════════════
+#  CONTEXT GROUPS  —  for context-aware KDS boosting
+#
+#  Design:  Each scam type has groups of semantically related keywords.
+#  Rule:    If 2+ keywords from the SAME group are matched in the text,
+#           every matched keyword in that group gets × CONTEXT_BOOST.
+#
+#  Why 1.3×?  It's a modest, auditable boost — not so aggressive that
+#  two weak words suddenly cause a false positive, but enough to
+#  meaningfully raise the score when real co-occurrence patterns appear.
+#  Example: "narcotics" alone = 2 pts.
+#           "narcotics" + "cbi officer" in same message
+#           → both in digital_arrest crime_group + authority_group
+#           → authority_group has 2+ matches → cbi boosted to 10.4
+#           → crime_group has only 1 match (narcotics) → no boost
+#           Net effect: "narcotics" stays 2, "cbi officer" boosted 8→10.4
+# ═══════════════════════════════════════════════════════════════════
+
+CONTEXT_BOOST = 1.3
+
+CONTEXT_GROUPS = {
+    "Digital Arrest": [
+        # Group 1 — authority impersonation phrases
+        ["cbi officer", "ncb officer", "ed officer", "central bureau",
+         "enforcement directorate", "cbcid"],
+        # Group 2 — crime / accusation framing
+        ["narcotics", "money laundering", "illegal activity detected",
+         "your aadhar linked", "your number is flagged", "national security"],
+        # Group 3 — arrest / legal action language
+        ["digital arrest", "you are under arrest", "cyber arrest",
+         "warrant issued", "arrested online"],
+        # Group 4 — control / isolation tactics
+        ["stay on call", "do not disconnect", "do not tell anyone",
+         "video call verification"],
+    ],
+    "KYC Fraud": [
+        # Group 1 — account threat
+        ["your account will be deactivated", "account will be suspended",
+         "your upi blocked", "bank account blocked"],
+        # Group 2 — KYC urgency
+        ["kyc expired", "update your kyc", "kyc pending", "re-kyc",
+         "kyc update", "kyc verification", "video kyc"],
+        # Group 3 — credential harvesting
+        ["click link to update", "aadhaar otp", "pan card verification"],
+    ],
+    "TRAI Scam": [
+        # Group 1 — disconnection threat
+        ["sim card blocked", "sim blocked", "your number will be disconnected",
+         "mobile number deactivated", "mobile connection suspended", "your sim card"],
+        # Group 2 — authority claim
+        ["trai", "dot officer", "department of telecom",
+         "telecom authority", "telecom regulatory"],
+        # Group 3 — action pressure
+        ["press 9 to speak", "press 1 to avoid", "automated call",
+         "illegal use of your number", "your number misused"],
+    ],
+    "Prize / Lottery Scam": [
+        # Group 1 — fee demand (the core fraud mechanism)
+        ["pay processing fee", "pay a processing fee", "processing fee",
+         "send registration fee", "claim fee"],
+        # Group 2 — brand impersonation
+        ["kbc winner", "kaun banega crorepati", "amazon lucky draw",
+         "flipkart winner", "1 crore prize"],
+        # Group 3 — win announcement
+        ["you have won", "congratulations you won", "lucky winner",
+         "lottery winner", "claim your prize", "prize money", "lucky draw"],
+    ],
+    "IT Department Scam": [
+        # Group 1 — fake refund
+        ["click to claim refund", "income tax refund approved",
+         "tds refund", "itr refund", "tax refund"],
+        # Group 2 — legal threat
+        ["tax arrest", "it raid", "tax evasion",
+         "financial irregularity", "unreported income", "black money"],
+        # Group 3 — identity / authority
+        ["your pan card flagged", "income tax officer",
+         "income tax notice", "income tax department", "income tax"],
+    ],
+}
+
+
+# ═══════════════════════════════════════════════════════════════════
 #  FACTOR SCORING FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════
 
-def score_kds(matched_weights: dict, all_weights: dict) -> int:
+def apply_context_boost(
+    matched_weights: dict,
+    scam_type: str,
+) -> tuple[dict, list[str]]:
+    """
+    Returns (boosted_weights, context_notes).
+
+    For each context group belonging to scam_type:
+      - Count how many matched keywords belong to that group
+      - If count >= 2, multiply every matched keyword in that group by CONTEXT_BOOST
+      - Record a human-readable note for the /explain endpoint
+    """
+    boosted = dict(matched_weights)   # copy — never mutate original
+    notes   = []
+    groups  = CONTEXT_GROUPS.get(scam_type, [])
+
+    for group in groups:
+        # which keywords from this group are actually in our matched set?
+        hits = [kw for kw in group if kw in boosted]
+        if len(hits) >= 2:
+            for kw in hits:
+                original = boosted[kw]
+                boosted[kw] = round(original * CONTEXT_BOOST, 2)
+            notes.append(
+                f"Context boost ×{CONTEXT_BOOST} applied to: "
+                + ", ".join(f'"{kw}"' for kw in hits)
+                + f" — these phrases co-occurring together is a stronger signal than any one phrase alone."
+            )
+
+    return boosted, notes
+
+
+def score_kds(
+    matched_weights: dict,
+    all_weights: dict,
+    scam_type: str = "",
+) -> tuple[int, dict, list[str]]:
     """
     Keyword Density Score (KDS) — max 40 points.
-    Normalises matched weight sum against top-5 keyword maximum.
+    Now returns (score, boosted_weights, context_notes).
+
+    Formula:
+      1. Apply context boost to matched_weights
+      2. top5_max = sum of top-5 weights in the full keyword dict
+      3. score = min(40,  sum(boosted) / top5_max × 40)
     """
     if not matched_weights:
-        return 0
+        return 0, {}, []
+
+    boosted, ctx_notes = apply_context_boost(matched_weights, scam_type)
     top5_max = sum(sorted(all_weights.values(), reverse=True)[:5])
-    raw = sum(matched_weights.values())
-    return int(min(40, (raw / top5_max) * 40))
+    raw      = sum(boosted.values())
+    score    = int(min(40, (raw / top5_max) * 40))
+    return score, boosted, ctx_notes
 
 
 def score_ups(text_lower: str) -> tuple[int, list]:
@@ -391,6 +519,12 @@ def detect_scam(text: str) -> dict:
     """
     Run all 4 scoring factors against the input text.
     Returns the highest-scoring scam category with full factor breakdown.
+
+    Severity floor change (v3.1):
+      Floor only activates when KDS >= 10.
+      Rationale: a single low-weight word like "narcotics" (weight 2)
+      should NOT force CRITICAL (70%) on its own. The floor is a boost
+      for real detections, not a catch-all for any keyword hit.
     """
     text_lower = text.lower()
 
@@ -408,28 +542,30 @@ def detect_scam(text: str) -> dict:
         if not matched:
             continue  # category not triggered at all
 
-        kds = score_kds(matched, kw_map)
+        # score_kds now returns (score, boosted_weights, context_notes)
+        kds, boosted_weights, ctx_notes = score_kds(matched, kw_map, scam_type)
 
-        # Combined raw score
         raw_total = kds + ups_score + ims_score + its_score
-        final_score = max(
-            min(100, raw_total),
-            SEVERITY_FLOOR.get(data["severity"], 0)
-        )
+
+        # Severity floor — only apply when there is real keyword evidence (KDS >= 10)
+        # This prevents a single weak keyword from forcing a CRITICAL/HIGH rating
+        floor = SEVERITY_FLOOR.get(data["severity"], 0) if kds >= 10 else 0
+        final_score = max(min(100, raw_total), floor)
 
         scores[scam_type] = {
-            "matched_keywords": list(matched.keys()),
-            "keyword_weights":  matched,
-            "risk_score":       final_score,
-            "explanation":      data["explanation"],
-            "action":           data["action"],
-            "severity":         data["severity"],
-            # Factor breakdown (sent to frontend for visualization)
+            "matched_keywords":  list(matched.keys()),
+            "keyword_weights":   matched,
+            "boosted_weights":   boosted_weights,    # after context boost
+            "context_notes":     ctx_notes,           # explains any boosts applied
+            "risk_score":        final_score,
+            "explanation":       data["explanation"],
+            "action":            data["action"],
+            "severity":          data["severity"],
             "factors": {
-                "kds": {"score": kds,       "max": 40, "label": "Keyword Density",     "matched": list(matched.keys())},
-                "ups": {"score": ups_score, "max": 25, "label": "Urgency & Pressure",  "matched": ups_matched},
-                "ims": {"score": ims_score, "max": 20, "label": "Impersonation",       "matched": ims_matched},
-                "its": {"score": its_score, "max": 15, "label": "Isolation Tactics",   "matched": its_matched},
+                "kds": {"score": kds,       "max": 40, "label": "Keyword Density",    "matched": list(matched.keys())},
+                "ups": {"score": ups_score, "max": 25, "label": "Urgency & Pressure", "matched": ups_matched},
+                "ims": {"score": ims_score, "max": 20, "label": "Impersonation",      "matched": ims_matched},
+                "its": {"score": its_score, "max": 15, "label": "Isolation Tactics",  "matched": its_matched},
             },
         }
 
@@ -454,15 +590,17 @@ def detect_scam(text: str) -> dict:
     pname, pdata = ranked[0]
 
     return {
-        "status":           "SCAM_DETECTED",
-        "primary_scam":     pname,
-        "severity":         pdata["severity"],
-        "risk_score":       pdata["risk_score"],
-        "matched_keywords": pdata["matched_keywords"],
-        "keyword_weights":  pdata["keyword_weights"],
-        "explanation":      pdata["explanation"],
-        "action":           pdata["action"],
-        "factors":          pdata["factors"],
+        "status":            "SCAM_DETECTED",
+        "primary_scam":      pname,
+        "severity":          pdata["severity"],
+        "risk_score":        pdata["risk_score"],
+        "matched_keywords":  pdata["matched_keywords"],
+        "keyword_weights":   pdata["keyword_weights"],
+        "boosted_weights":   pdata["boosted_weights"],
+        "context_notes":     pdata["context_notes"],
+        "explanation":       pdata["explanation"],
+        "action":            pdata["action"],
+        "factors":           pdata["factors"],
         "other_matches": [
             {"type": k, "risk_score": v["risk_score"], "severity": v["severity"]}
             for k, v in ranked[1:]
@@ -488,6 +626,185 @@ def analyze():
     if len(msg) < 5:
         return jsonify({"error": "Message too short to analyse"}), 400
     return jsonify(detect_scam(msg))
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  /explain  —  plain-English breakdown of every scoring decision
+#
+#  Same input as /analyze.
+#  Returns a human-readable report explaining WHY each factor scored
+#  what it did — intended for the UI "How did we score this?" panel
+#  and for demonstrating algorithm explainability to judges.
+# ═══════════════════════════════════════════════════════════════════
+
+FACTOR_DESCRIPTIONS = {
+    "kds": (
+        "Keyword Density Score measures how many scam-specific phrases "
+        "were found. Each phrase has a weight from 1 (low signal alone) "
+        "to 10 (almost never appears outside scam messages). "
+        "When multiple related phrases appear together, a context boost "
+        "of ×1.3 is applied because co-occurrence is a stronger signal."
+    ),
+    "ups": (
+        "Urgency & Pressure Score detects artificial time pressure. "
+        "Scammers always create fake deadlines ('within 2 hours', "
+        "'failure to comply') to stop you from thinking clearly or "
+        "calling someone to verify."
+    ),
+    "ims": (
+        "Impersonation Score measures how convincingly the message "
+        "claims to come from a real authority — CBI, TRAI, Income Tax "
+        "Department, RBI, or a bank. The more specific the claim, "
+        "the higher the score."
+    ),
+    "its": (
+        "Isolation Tactic Score detects phrases designed to stop you "
+        "from telling family or friends. 'Do not tell anyone', 'stay on "
+        "call', 'keep this confidential' — these are almost exclusively "
+        "used by scammers to prevent victims from verifying the call."
+    ),
+}
+
+RISK_VERDICT = {
+    "SAFE":     "No scam patterns found. Stay cautious — this tool is not exhaustive.",
+    "MEDIUM":   "This looks suspicious. Do not pay any money or share personal details until you verify through official channels.",
+    "HIGH":     "Strong scam indicators. Do not comply. Hang up and call 1930 (National Cybercrime Helpline).",
+    "CRITICAL": "This is almost certainly a scam. No Indian law allows 'digital arrest'. Hang up immediately and call 1930.",
+}
+
+
+def build_explain(result: dict) -> dict:
+    """
+    Converts a detect_scam() result into a plain-English explanation object.
+    """
+    if result["status"] == "SAFE":
+        return {
+            "is_scam":   False,
+            "summary":   "No scam patterns were detected in this message.",
+            "verdict":   RISK_VERDICT["SAFE"],
+            "factors":   [],
+            "tip":       result.get("tip", ""),
+        }
+
+    factors      = result["factors"]
+    scam_type    = result["primary_scam"]
+    severity     = result["severity"]
+    risk_score   = result["risk_score"]
+    ctx_notes    = result.get("context_notes", [])
+
+    # ── Summary sentence ──────────────────────────────────────────
+    summary = (
+        f"This message scores {risk_score}% risk and matches the pattern of a "
+        f"{scam_type} — rated {severity}. "
+    )
+    if risk_score >= 85:
+        summary += "It contains multiple high-confidence scam indicators."
+    elif risk_score >= 65:
+        summary += "It contains several clear scam indicators."
+    else:
+        summary += "It contains some scam indicators — treat with caution."
+
+    # ── Per-factor plain-English ───────────────────────────────────
+    factor_explanations = []
+
+    for key, meta in [
+        ("kds", "Keyword Density Score"),
+        ("ups", "Urgency & Pressure Score"),
+        ("ims", "Impersonation Score"),
+        ("its", "Isolation Tactic Score"),
+    ]:
+        f     = factors[key]
+        score = f["score"]
+        maxpt = f["max"]
+        hits  = f["matched"]
+
+        if score == 0:
+            plain = f"No {meta.split()[0].lower()} signals were found. This factor scored 0/{maxpt}."
+        else:
+            pct_of_max = round((score / maxpt) * 100)
+            # Describe intensity
+            if pct_of_max >= 80:
+                intensity = "very high"
+            elif pct_of_max >= 50:
+                intensity = "significant"
+            elif pct_of_max >= 25:
+                intensity = "moderate"
+            else:
+                intensity = "low"
+
+            # List matched phrases
+            if hits:
+                phrase_list = ", ".join(f'"{h}"' for h in hits[:4])
+                extra = f" and {len(hits)-4} more" if len(hits) > 4 else ""
+                phrase_str = f"Matched phrases: {phrase_list}{extra}."
+            else:
+                phrase_str = ""
+
+            plain = (
+                f"Scored {score}/{maxpt} ({intensity}). "
+                f"{FACTOR_DESCRIPTIONS[key]} "
+                f"{phrase_str}"
+            )
+
+        factor_explanations.append({
+            "factor":  meta,
+            "key":     key,
+            "score":   score,
+            "max":     maxpt,
+            "plain":   plain,
+        })
+
+    # ── Context boost notes ────────────────────────────────────────
+    context_section = ctx_notes if ctx_notes else [
+        "No context boost was applied — matched keywords did not form "
+        "co-occurring groups strong enough to trigger the 1.3× multiplier."
+    ]
+
+    # ── Score formula breakdown ────────────────────────────────────
+    kds = factors["kds"]["score"]
+    ups = factors["ups"]["score"]
+    ims = factors["ims"]["score"]
+    its = factors["its"]["score"]
+    raw = kds + ups + ims + its
+    formula_plain = (
+        f"KDS ({kds}) + UPS ({ups}) + IMS ({ims}) + ITS ({its}) "
+        f"= {raw} → capped at 100 → {min(100, raw)}. "
+        f"Severity floor for {severity} scams ensures a minimum of "
+        f"{SEVERITY_FLOOR.get(severity, 0)}% when real evidence is present. "
+        f"Final score: {risk_score}%."
+    )
+
+    return {
+        "is_scam":        True,
+        "primary_scam":   scam_type,
+        "severity":       severity,
+        "risk_score":     risk_score,
+        "summary":        summary,
+        "verdict":        RISK_VERDICT.get(severity, RISK_VERDICT["HIGH"]),
+        "formula":        formula_plain,
+        "factors":        factor_explanations,
+        "context_boosts": context_section,
+        "what_to_do":     result.get("action", []),
+    }
+
+
+@app.route("/explain", methods=["POST"])
+def explain():
+    """
+    POST { "message": "..." }
+    Returns a plain-English explanation of every scoring decision made.
+    Useful for UI 'How did we score this?' panel and judge demos.
+    """
+    payload = request.get_json()
+    if not payload or not payload.get("message", "").strip():
+        return jsonify({"error": "No message provided"}), 400
+    msg = payload["message"].strip()
+    if len(msg) < 5:
+        return jsonify({"error": "Message too short to analyse"}), 400
+
+    result  = detect_scam(msg)
+    explain_result = build_explain(result)
+    return jsonify(explain_result)
 
 
 @app.route("/analytics", methods=["GET"])

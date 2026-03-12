@@ -146,22 +146,56 @@ class TestSafeMessages(unittest.TestCase):
 class TestFactorScores(unittest.TestCase):
 
     # — KDS —
+    # score_kds now returns (score, boosted_weights, context_notes)
+
     def test_kds_zero_on_no_match(self):
-        score = score_kds({}, SCAM_PATTERNS["Digital Arrest"]["keywords"])
+        score, boosted, notes = score_kds({}, SCAM_PATTERNS["Digital Arrest"]["keywords"], "Digital Arrest")
         self.assertEqual(score, 0)
+        self.assertEqual(boosted, {})
+        self.assertEqual(notes, [])
 
     def test_kds_max_40(self):
         """Score must never exceed 40."""
         kw_map = SCAM_PATTERNS["Digital Arrest"]["keywords"]
         full_match = dict(kw_map)
-        score = score_kds(full_match, kw_map)
+        score, _, _ = score_kds(full_match, kw_map, "Digital Arrest")
         self.assertLessEqual(score, 40)
 
     def test_kds_higher_weight_gives_higher_score(self):
         kw_map = SCAM_PATTERNS["Digital Arrest"]["keywords"]
-        low  = score_kds({"narcotics": 5}, kw_map)
-        high = score_kds({"digital arrest": 10, "you are under arrest": 10}, kw_map)
+        # Use weight 2 (narcotics after tuning) vs weight 10
+        low,  _, _ = score_kds({"narcotics": 2},  kw_map, "Digital Arrest")
+        high, _, _ = score_kds({"digital arrest": 10, "you are under arrest": 10}, kw_map, "Digital Arrest")
         self.assertGreater(high, low)
+
+    def test_kds_context_boost_applied_when_two_group_members_match(self):
+        """If 2+ keywords from same context group match, boosted weights > original."""
+        kw_map = SCAM_PATTERNS["Digital Arrest"]["keywords"]
+        # "cbi officer" and "ncb officer" are both in the authority group
+        matched = {"cbi officer": 8, "ncb officer": 8}
+        _, boosted, notes = score_kds(matched, kw_map, "Digital Arrest")
+        self.assertGreater(boosted["cbi officer"], 8,  "cbi officer should be boosted above 8")
+        self.assertGreater(boosted["ncb officer"], 8,  "ncb officer should be boosted above 8")
+        self.assertGreater(len(notes), 0, "Context boost note should be recorded")
+
+    def test_kds_no_context_boost_for_single_group_member(self):
+        """Single keyword from a group does NOT trigger the boost."""
+        kw_map = SCAM_PATTERNS["Digital Arrest"]["keywords"]
+        matched = {"narcotics": 2}   # only one member of crime_group
+        _, boosted, notes = score_kds(matched, kw_map, "Digital Arrest")
+        self.assertEqual(boosted["narcotics"], 2,  "narcotics alone must NOT be boosted")
+        self.assertEqual(notes, [], "No context boost note when only 1 group member")
+
+    def test_kds_context_boost_raises_score(self):
+        """Score with context boost should be higher than score without."""
+        kw_map = SCAM_PATTERNS["Digital Arrest"]["keywords"]
+        # Without boost — only one per group
+        single = {"cbi officer": 8}
+        score_solo, _, _ = score_kds(single, kw_map, "Digital Arrest")
+        # With boost — two in same authority group → boost applied
+        pair   = {"cbi officer": 8, "ncb officer": 8}
+        score_pair, _, _ = score_kds(pair, kw_map, "Digital Arrest")
+        self.assertGreater(score_pair, score_solo, "Co-occurring group keywords should score higher")
 
     # — UPS —
     def test_ups_zero_on_no_urgency(self):
@@ -247,19 +281,44 @@ class TestRiskScoreBounds(unittest.TestCase):
         r = get_result("digital arrest")
         self.assertGreaterEqual(r.get("risk_score", 0), 0)
 
-    def test_critical_severity_floor(self):
-        """Digital Arrest (CRITICAL) must always score >= 70."""
-        r = get_result("digital arrest")  # single keyword trigger
+    def test_single_weak_keyword_does_not_force_severity_floor(self):
+        """
+        'narcotics' (weight 2) alone should NOT score 70%.
+        The severity floor only activates when KDS >= 10 (real evidence present).
+        This prevents a single ambiguous word from triggering CRITICAL rating.
+        """
+        r = get_result("narcotics trafficking is a problem in india")
+        if r["status"] == "SCAM_DETECTED":
+            self.assertLess(r["risk_score"], SEVERITY_FLOOR["CRITICAL"],
+                "Single weak keyword must NOT trigger the CRITICAL floor")
+
+    def test_critical_severity_floor_with_real_evidence(self):
+        """
+        A genuine-looking Digital Arrest message (multiple keywords, KDS >= 10)
+        must score >= 70% (CRITICAL floor).
+        """
+        r = get_result(
+            "cbi officer calling. you are under digital arrest. "
+            "a warrant has been issued. do not tell anyone."
+        )
+        self.assertEqual(r["status"], "SCAM_DETECTED")
+        self.assertEqual(r["primary_scam"], "Digital Arrest")
         self.assertGreaterEqual(r["risk_score"], SEVERITY_FLOOR["CRITICAL"])
 
-    def test_high_severity_floor(self):
-        """KYC Fraud (HIGH) must always score >= 50."""
-        r = get_result("kyc expired")
+    def test_high_severity_floor_with_real_evidence(self):
+        """
+        A genuine KYC fraud message with multiple keywords must score >= 50%.
+        """
+        r = get_result(
+            "your sbi kyc has expired. your account will be deactivated. "
+            "update your kyc now. enter aadhaar otp."
+        )
+        self.assertEqual(r["status"], "SCAM_DETECTED")
         self.assertGreaterEqual(r["risk_score"], SEVERITY_FLOOR["HIGH"])
 
     def test_medium_severity_floor(self):
-        """Prize Scam (MEDIUM) must always score >= 30."""
-        r = get_result("you have won the lucky draw prize money")
+        """Prize Scam (MEDIUM) with real evidence must score >= 30%."""
+        r = get_result("you have won the lucky draw. claim your prize money.")
         self.assertGreaterEqual(r["risk_score"], SEVERITY_FLOOR["MEDIUM"])
 
 
@@ -358,6 +417,139 @@ class TestEdgeCases(unittest.TestCase):
 
 
 # ══════════════════════════════════════════════════════
+#  TEST CLASS 7: CONTEXT SCORING (new feature)
+# ══════════════════════════════════════════════════════
+
+class TestContextScoring(unittest.TestCase):
+
+    def test_narcotics_alone_does_not_force_critical_floor(self):
+        """
+        Before: "narcotics" alone in any message → 70% (severity floor fires).
+        After:  "narcotics" weight is 2. KDS < 10. Floor doesn't apply. Score stays low.
+        This was the main false-positive bug that context scoring + tuning fixes.
+        """
+        r = get_result("the government is fighting narcotics trafficking in india")
+        if r["status"] == "SCAM_DETECTED":
+            self.assertLess(
+                r["risk_score"], 40,
+                "Journalism mention of 'narcotics' must NOT score CRITICAL"
+            )
+
+    def test_narcotics_with_cbi_scores_higher(self):
+        """Co-occurring authority + crime context should score higher than either alone."""
+        r_alone   = get_result("narcotics")
+        r_context = get_result("cbi officer called. narcotics case. warrant issued. you are under arrest.")
+        # Context version must score higher
+        score_alone   = r_alone.get("risk_score", 0)   if r_alone["status"]   == "SCAM_DETECTED" else 0
+        score_context = r_context.get("risk_score", 0) if r_context["status"] == "SCAM_DETECTED" else 0
+        self.assertGreater(score_context, score_alone)
+
+    def test_context_notes_present_when_boost_applied(self):
+        """When context groups co-occur, result must include context_notes list."""
+        r = get_result(
+            "cbi officer calling. ncb officer on line. "
+            "you are under digital arrest. warrant issued."
+        )
+        self.assertEqual(r["status"], "SCAM_DETECTED")
+        self.assertIn("context_notes", r)
+        self.assertIsInstance(r["context_notes"], list)
+        # cbi officer + ncb officer are both in authority group → boost must fire
+        self.assertGreater(len(r["context_notes"]), 0,
+            "cbi officer + ncb officer co-occurrence must produce a context note")
+
+    def test_context_notes_empty_when_no_boost(self):
+        """Single keyword, no co-occurring group → context_notes must be empty list."""
+        r = get_result("digital arrest")
+        if r["status"] == "SCAM_DETECTED":
+            self.assertIn("context_notes", r)
+            self.assertEqual(r["context_notes"], [],
+                "Single keyword alone must produce no context boost notes")
+
+    def test_prize_scam_fee_group_boost(self):
+        """'processing fee' + 'pay a processing fee' co-occur → fee group boosts."""
+        r = get_result(
+            "you have won. pay a processing fee to claim your prize money. "
+            "send registration fee immediately."
+        )
+        self.assertEqual(r["status"], "SCAM_DETECTED")
+        # Fee group has 3 matches → boost should fire
+        if r.get("context_notes"):
+            fee_boost = any("processing fee" in n for n in r["context_notes"])
+            self.assertTrue(fee_boost, "Fee group context boost should be noted")
+
+    def test_boosted_weights_in_response(self):
+        """Response must include boosted_weights field showing post-boost values."""
+        r = get_result("cbi officer: ncb officer here. digital arrest. warrant issued.")
+        self.assertIn("boosted_weights", r)
+        self.assertIsInstance(r["boosted_weights"], dict)
+
+
+# ══════════════════════════════════════════════════════
+#  TEST CLASS 8: /EXPLAIN ENDPOINT (new feature)
+# ══════════════════════════════════════════════════════
+
+from app import build_explain   # test the builder function directly
+
+class TestExplainEndpoint(unittest.TestCase):
+
+    def _explain(self, message: str) -> dict:
+        return build_explain(detect_scam(message))
+
+    def test_explain_is_scam_true_for_scam(self):
+        r = self._explain("cbi officer: digital arrest. warrant issued.")
+        self.assertTrue(r["is_scam"])
+
+    def test_explain_is_scam_false_for_safe(self):
+        r = self._explain("hello, how are you doing today")
+        self.assertFalse(r["is_scam"])
+
+    def test_explain_has_summary(self):
+        r = self._explain("cbi officer digital arrest warrant issued do not tell anyone")
+        self.assertIn("summary", r)
+        self.assertIsInstance(r["summary"], str)
+        self.assertGreater(len(r["summary"]), 20)
+
+    def test_explain_has_four_factors(self):
+        r = self._explain("digital arrest cbi officer warrant issued")
+        self.assertIn("factors", r)
+        self.assertEqual(len(r["factors"]), 4)
+
+    def test_explain_factor_has_plain_english(self):
+        r = self._explain("digital arrest cbi officer warrant issued")
+        for factor in r["factors"]:
+            self.assertIn("plain",  factor, "Each factor must have a plain-English field")
+            self.assertIn("score",  factor)
+            self.assertIn("max",    factor)
+            self.assertIn("factor", factor)
+
+    def test_explain_has_verdict(self):
+        r = self._explain("digital arrest cbi officer warrant issued")
+        self.assertIn("verdict", r)
+        self.assertGreater(len(r["verdict"]), 10)
+
+    def test_explain_has_formula(self):
+        r = self._explain("digital arrest cbi officer warrant issued")
+        self.assertIn("formula", r)
+        # Formula must mention all four factor keys
+        for key in ["KDS", "UPS", "IMS", "ITS"]:
+            self.assertIn(key, r["formula"])
+
+    def test_explain_safe_has_tip_not_factors(self):
+        r = self._explain("good morning how are you")
+        self.assertFalse(r["is_scam"])
+        self.assertIn("tip", r)
+        self.assertEqual(r["factors"], [])
+
+    def test_explain_context_boost_section_present(self):
+        r = self._explain(
+            "cbi officer and ncb officer called. "
+            "digital arrest. warrant issued."
+        )
+        self.assertIn("context_boosts", r)
+        self.assertIsInstance(r["context_boosts"], list)
+
+
+# ══════════════════════════════════════════════════════
 #  RUNNER
 # ══════════════════════════════════════════════════════
 
@@ -372,6 +564,8 @@ def run_tests():
         TestRiskScoreBounds,
         TestResponseStructure,
         TestEdgeCases,
+        TestContextScoring,
+        TestExplainEndpoint,
     ]
 
     for cls in test_classes:
