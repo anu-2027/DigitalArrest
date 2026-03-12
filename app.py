@@ -608,6 +608,69 @@ def detect_scam(text: str) -> dict:
     }
 
 
+# ═══════════════════════════════════════════════════════════════════
+#  SCAM INFO PAGE — SLUG MAPPING & DATA
+# ═══════════════════════════════════════════════════════════════════
+
+SCAM_SLUG_MAP = {
+    "digital-arrest":      "Digital Arrest",
+    "kyc-fraud":           "KYC Fraud",
+    "trai-scam":           "TRAI Scam",
+    "prize-scam":          "Prize / Lottery Scam",
+    "it-department-scam":  "IT Department Scam",
+}
+
+SCAM_ICONS = {
+    "Digital Arrest":        "🚨",
+    "KYC Fraud":             "🏦",
+    "TRAI Scam":             "📡",
+    "Prize / Lottery Scam":  "🎰",
+    "IT Department Scam":    "📋",
+}
+
+_DEMO_LABELS = {
+    "digital-arrest":      "Digital Arrest — CBI Officer",
+    "kyc-fraud":           "KYC Fraud — SBI Account Block",
+    "trai-scam":           "TRAI Scam — SIM Disconnection",
+    "prize-scam":          "Prize Scam — KBC Lucky Draw",
+    "it-department-scam":  "IT Dept Scam — TDS Refund",
+}
+
+_DEMO_MESSAGES = {
+    "digital-arrest": (
+        "This is Officer Rajiv Sharma from the Central Bureau of Investigation (CBI). "
+        "Your Aadhaar number is linked to a money laundering case. "
+        "You are under digital arrest effective immediately. A warrant has been issued. "
+        "Stay on this video call and do not disconnect. Do not tell anyone about this call "
+        "or you will be taken into physical custody within 2 hours. Failure to comply "
+        "will result in legal action."
+    ),
+    "kyc-fraud": (
+        "Dear SBI customer, your SBI KYC has expired as of today. "
+        "Your account will be deactivated within 24 hours if KYC is not updated. "
+        "Click to update your KYC immediately: sbi-kyc-update.net/verify "
+        "Enter your Aadhaar OTP to complete re-KYC. Ignore at your own risk."
+    ),
+    "trai-scam": (
+        "URGENT: TRAI notice — illegal use of your number has been detected. "
+        "Your SIM card will be disconnected within 2 hours by the Department of Telecom. "
+        "Your mobile connection is suspended pending verification. "
+        "Press 9 to speak with a DoT officer immediately to avoid disconnection."
+    ),
+    "prize-scam": (
+        "Congratulations! You have won Rs 25,00,000 in the KBC Lucky Draw 2025. "
+        "You are our lucky winner selected from 2 crore participants. "
+        "To claim your prize money, pay a processing fee of Rs 2500 to activate your "
+        "KBC winner account. Offer expires today. Act now and call back immediately."
+    ),
+    "it-department-scam": (
+        "Income Tax Department alert: your TDS refund of Rs 18,450 has been approved. "
+        "Your PAN card has been flagged for unreported income and financial irregularity. "
+        "Click to claim refund: incometax-refund.net/claim — respond immediately. "
+        "Failure to comply may result in tax arrest and IT raid proceedings within 24 hours."
+    ),
+}
+
 # ═══════════════════════════════════════
 #  ROUTES
 # ═══════════════════════════════════════
@@ -834,53 +897,51 @@ def analytics():
 def test_cases():
     return jsonify([
         {
-            "id": 1, "label": "Digital Arrest — CBI Officer", "tag": "CRITICAL",
-            "message": (
-                "This is Officer Rajiv Sharma from the Central Bureau of Investigation (CBI). "
-                "Your Aadhaar number is linked to a money laundering case. "
-                "You are under digital arrest effective immediately. A warrant has been issued. "
-                "Stay on this video call and do not disconnect. Do not tell anyone about this call "
-                "or you will be taken into physical custody within 2 hours. Failure to comply "
-                "will result in legal action."
-            ),
+            "id": 1, "slug": "digital-arrest",
+            "label": "Digital Arrest — CBI Officer", "tag": "CRITICAL",
+            "message": _DEMO_MESSAGES["digital-arrest"],
         },
         {
-            "id": 2, "label": "KYC Fraud — SBI Account Block", "tag": "HIGH",
-            "message": (
-                "Dear SBI customer, your SBI KYC has expired as of today. "
-                "Your account will be deactivated within 24 hours if KYC is not updated. "
-                "Click to update your KYC immediately: sbi-kyc-update.net/verify "
-                "Enter your Aadhaar OTP to complete re-KYC. Ignore at your own risk."
-            ),
+            "id": 2, "slug": "kyc-fraud",
+            "label": "KYC Fraud — SBI Account Block", "tag": "HIGH",
+            "message": _DEMO_MESSAGES["kyc-fraud"],
         },
         {
-            "id": 3, "label": "TRAI Scam — SIM Disconnection", "tag": "HIGH",
-            "message": (
-                "URGENT: TRAI notice — illegal use of your number has been detected. "
-                "Your SIM card will be disconnected within 2 hours by the Department of Telecom. "
-                "Your mobile connection is suspended pending verification. "
-                "Press 9 to speak with a DoT officer immediately to avoid disconnection."
-            ),
+            "id": 3, "slug": "trai-scam",
+            "label": "TRAI Scam — SIM Disconnection", "tag": "HIGH",
+            "message": _DEMO_MESSAGES["trai-scam"],
         },
         {
-            "id": 4, "label": "Prize Scam — KBC Lucky Draw", "tag": "MEDIUM",
-            "message": (
-                "Congratulations! You have won Rs 25,00,000 in the KBC Lucky Draw 2025. "
-                "You are our lucky winner selected from 2 crore participants. "
-                "To claim your prize money, pay a processing fee of Rs 2500 to activate your "
-                "KBC winner account. Offer expires today. Act now and call back immediately."
-            ),
+            "id": 4, "slug": "prize-scam",
+            "label": "Prize Scam — KBC Lucky Draw", "tag": "MEDIUM",
+            "message": _DEMO_MESSAGES["prize-scam"],
         },
         {
-            "id": 5, "label": "IT Dept Scam — TDS Refund", "tag": "HIGH",
-            "message": (
-                "Income Tax Department alert: your TDS refund of Rs 18,450 has been approved. "
-                "Your PAN card has been flagged for unreported income and financial irregularity. "
-                "Click to claim refund: incometax-refund.net/claim — respond immediately. "
-                "Failure to comply may result in tax arrest and IT raid proceedings within 24 hours."
-            ),
+            "id": 5, "slug": "it-department-scam",
+            "label": "IT Dept Scam — TDS Refund", "tag": "HIGH",
+            "message": _DEMO_MESSAGES["it-department-scam"],
         },
     ])
+
+
+@app.route("/scam/<slug>")
+def scam_detail(slug):
+    scam_name = SCAM_SLUG_MAP.get(slug)
+    if not scam_name or scam_name not in SCAM_PATTERNS:
+        return "Not found", 404
+    data = SCAM_PATTERNS[scam_name]
+    return render_template(
+        "scam_detail.html",
+        scam_name=scam_name,
+        slug=slug,
+        severity=data["severity"],
+        keywords=data["keywords"],
+        explanation=data["explanation"],
+        actions=data["action"],
+        demo_message=_DEMO_MESSAGES.get(slug, ""),
+        demo_label=_DEMO_LABELS.get(slug, scam_name),
+        scam_icon=SCAM_ICONS.get(scam_name, "⚠️"),
+    )
 
 
 if __name__ == "__main__":

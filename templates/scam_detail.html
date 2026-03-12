@@ -325,7 +325,7 @@ footer a{color:var(--teal);text-decoration:none}
     <div class="sec-body">
       <ul class="act-list">
         {% for action in actions %}
-        <li class="act-item" style="animation-delay:{{ loop.index0 * 0.05 }}s">
+        <li class="act-item" data-delay="{{ loop.index0 * 0.05 }}">
           <span class="act-n">{{ loop.index }}</span>
           {{ action }}
         </li>
@@ -375,6 +375,9 @@ footer a{color:var(--teal);text-decoration:none}
 window.addEventListener('load', () => {
   document.querySelectorAll('.kw-fill').forEach((el, i) => {
     setTimeout(() => { el.style.width = el.dataset.w + '%'; }, 80 + i * 35);
+  });
+  document.querySelectorAll('.act-item[data-delay]').forEach(el => {
+    el.style.animationDelay = el.dataset.delay + 's';
   });
 });
 </script>

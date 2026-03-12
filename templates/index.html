@@ -674,31 +674,19 @@ async function loadAnalytics() {
 }
 
 // ══════════════════════════════════════
-//  DEMO TEST CASES — fill the form via raw tab
+//  DEMO TEST CASES — open detail page
 // ══════════════════════════════════════
 async function loadDemos() {
   try {
     const cases = await (await fetch('/test-cases')).json();
-    window._demos = cases;
     document.getElementById('demoGrid').innerHTML = cases.map(tc =>
-      `<button class="demo-btn" onclick="runDemo(${tc.id})">
+      `<a class="demo-btn" href="/scam/${tc.slug}" target="_blank" rel="noopener noreferrer">
         <span class="demo-tag ${tc.tag}">${tc.tag}</span>
         <span class="demo-label">${tc.label}</span>
-        <span class="demo-arrow">→</span>
-      </button>`
+        <span class="demo-arrow">↗</span>
+      </a>`
     ).join('');
   } catch(e) { console.warn('Demos unavailable'); }
-}
-
-function runDemo(id) {
-  const tc = (window._demos||[]).find(c=>c.id===id);
-  if (!tc) return;
-  // Switch to raw tab and fill the message
-  switchTab('raw');
-  document.getElementById('rawMsg').value = tc.message;
-  document.getElementById('rawCount').textContent = `${tc.message.length} characters`;
-  document.getElementById('rawCard').scrollIntoView({ behavior:'smooth' });
-  setTimeout(() => scan(tc.message), 300);
 }
 
 // ══════════════════════════════════════
