@@ -24,12 +24,19 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden;transition:background .25s,color .25s}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:-2;
   background-image:linear-gradient(var(--grid-line)1px,transparent 1px),linear-gradient(90deg,var(--grid-line)1px,transparent 1px);
-  background-size:48px 48px}
-body::after{content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);
-  width:800px;height:400px;background:radial-gradient(ellipse,rgba(0,224,150,.05)0%,transparent 70%);
-  pointer-events:none;z-index:0}
+  background-size:48px 48px;
+  animation:gridShift 24s linear infinite}
+body::after{content:'';position:fixed;top:-220px;left:50%;transform:translateX(-50%);
+  width:1100px;height:520px;
+  background:
+    radial-gradient(ellipse at 28% 25%,rgba(0,224,150,.22)0%,transparent 65%),
+    radial-gradient(ellipse at 70% 60%,rgba(33,150,243,.18)0%,transparent 68%);
+  pointer-events:none;z-index:-1;opacity:.92;filter:blur(52px);
+  animation:flow 18s ease-in-out infinite alternate}
+@keyframes gridShift{0%{background-position:0 0,0 0}50%{background-position:32px 32px,32px 32px}100%{background-position:0 0,0 0}}
+@keyframes flow{0%{transform:translateX(-50%) translateY(-36px) scale(1)}100%{transform:translateX(-50%) translateY(36px) scale(1.05)}}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg2)}
 ::-webkit-scrollbar-thumb{background:var(--dim);border-radius:3px}
 .wrap{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
@@ -66,7 +73,11 @@ header{display:flex;align-items:center;justify-content:space-between;padding:0 4
 main{flex:1;max-width:1100px;margin:0 auto;width:100%;padding:36px 24px 80px;
   display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
 .left{display:flex;flex-direction:column;gap:20px}
-.hero{animation:up .5s ease both}
+.hero{position:relative;overflow:hidden;animation:up .5s ease both}
+.hero::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 20% 20%,rgba(0,224,150,.18),transparent 55%);
+  opacity:.4;filter:blur(18px);animation:heroGlow 8s ease-in-out infinite alternate}
+@keyframes heroGlow{0%{transform:translate(-12%,-8%) scale(1)}100%{transform:translate(15%,10%) scale(1.05)}}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
   font-size:.68rem;letter-spacing:2px;text-transform:uppercase;color:var(--teal);
   margin-bottom:12px;padding:4px 12px;background:rgba(0,212,170,.07);
@@ -354,18 +365,18 @@ footer a{color:var(--teal);text-decoration:none}
 <div class="left">
   <div class="hero">
     <div class="eyebrow" data-i18n="hero.eyebrow">🇮🇳 India Cybercrime Prevention</div>
-    <h1><span data-i18n="hero.title-line1">Got a suspicious call?</span><br><span class="grad" data-i18n="hero.title-line2">Report it. We'll detect it.</span></h1>
-    <p data-i18n="hero.subtitle">Fill in what happened on the call — who called, what they claimed, what they wanted. Our engine analyses it and tells you if it's a scam.</p>
+    <h1><span data-i18n="hero.title-line1">Got a suspicious message?</span><br><span class="grad" data-i18n="hero.title-line2">Report it. We'll detect it.</span></h1>
+    <p data-i18n="hero.subtitle">Fill in what happened in the message — who sent it, what they claimed, what they wanted. Our engine analyses it and tells you if it's a scam.</p>
   </div>
 
   <div class="form-card" id="rawCard">
     <div class="form-card-header">
-      <div class="form-card-title" data-i18n="scan.card-title">Paste Message or Describe the Call</div>
+      <div class="form-card-title" data-i18n="scan.card-title">Paste Message or Describe the Message</div>
     </div>
     <div class="raw-section">
-      <div class="field-hint" style="margin-bottom:12px" data-i18n="scan.field-hint">Paste the exact SMS / WhatsApp message you received, or type what the caller said in your own words.</div>
+      <div class="field-hint" style="margin-bottom:12px" data-i18n="scan.field-hint">Paste the exact SMS / WhatsApp message you received, or type what the sender said in your own words.</div>
       <div class="raw-ta-wrap">
-        <textarea id="rawMsg" data-i18n-ph="scan.placeholder" placeholder="e.g. 'Dear Customer, your SBI KYC has expired. Your account will be deactivated in 24 hours. Click: sbi-kyc-update.xyz/verify'&#10;&#10;Or: 'A person called claiming to be an ED officer. He said my Aadhaar is linked to money laundering and I am under digital arrest...'"></textarea>
+        <textarea id="rawMsg" data-i18n-ph="scan.placeholder" placeholder="e.g. 'Dear Customer, your SBI KYC has expired. Your account will be deactivated in 24 hours. Click: sbi-kyc-update.xyz/verify'&#10;&#10;Or: 'A person sent a message claiming to be an ED officer. He said my Aadhaar is linked to money laundering and I am under digital arrest...'"></textarea>
       </div>
       <div class="translate-bar" id="translateBar">
         <div class="translate-bar-msg">🌐 Non-English text detected (<span class="tl-lang" id="tlLangName">regional language</span>)</div>
@@ -843,4 +854,5 @@ function daToggleTheme(){
 })();
 </script>
 </body>
+
 </html>

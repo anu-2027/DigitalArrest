@@ -12,14 +12,14 @@ const DA_TRANSLATIONS = {
 
     /* ── INDEX — HERO ── */
     'hero.eyebrow':        '🇮🇳 India Cybercrime Prevention',
-    'hero.title-line1':    'Got a suspicious call?',
+    'hero.title-line1':    'Got a suspicious message?',
     'hero.title-line2':    "Report it. We'll detect it.",
-    'hero.subtitle':       "Fill in what happened on the call — who called, what they claimed, what they wanted. Our engine analyses it and tells you if it's a scam.",
+    'hero.subtitle':       "Fill in what happened in the message — who sent it, what they claimed, what they wanted. Our engine analyses it and tells you if it's a scam.",
 
     /* ── INDEX — SCANNER CARD ── */
-    'scan.card-title':     'Paste Message or Describe the Call',
-    'scan.field-hint':     'Paste the exact SMS / WhatsApp message you received, or type what the caller said in your own words.',
-    'scan.placeholder':    "e.g. 'Dear Customer, your SBI KYC has expired…'\n\nOr: 'A person called claiming to be an ED officer…'",
+    'scan.card-title':     'Paste Message or Describe the Message',
+    'scan.field-hint':     'Paste the exact SMS / WhatsApp message you received, or type what the sender said in your own words.',
+    'scan.placeholder':    "e.g. 'Dear Customer, your SBI KYC has expired…'\n\nOr: 'A person sent a message claiming to be an ED officer…'",
     'scan.btn':            '🔍 Scan Now',
     'scan.bar':            'Analysing your report across 5 scam categories…',
 
