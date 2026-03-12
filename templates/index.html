@@ -299,6 +299,36 @@ footer a{color:var(--teal);text-decoration:none}
 
 @media(max-width:900px){main{grid-template-columns:1fr}.right{position:static}.kpi-grid{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:600px){header{padding:0 16px}main{padding:22px 14px 60px}h1{font-size:1.55rem}.kpi-grid{grid-template-columns:1fr 1fr}.hdr-link{display:none}.check-group{grid-template-columns:1fr}}
+
+/* ── FACTOR BREAKDOWN VISUALIZATION ── */
+.factor-sec{padding:18px 22px;background:var(--card);border-bottom:1px solid var(--border)}
+.factor-title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.factor-title{font-family:var(--mono);font-size:.63rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)}
+.factor-legend{font-family:var(--mono);font-size:.6rem;color:var(--muted)}
+.factor-rows{display:flex;flex-direction:column;gap:10px}
+.factor-row{display:flex;flex-direction:column;gap:5px}
+.factor-row-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.factor-name{font-size:.78rem;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px}
+.factor-name .fi{font-size:.85rem}
+.factor-score-label{font-family:var(--mono);font-size:.7rem;color:var(--muted);white-space:nowrap}
+.factor-score-label .fs-val{font-weight:700}
+.factor-track{height:7px;background:var(--dim);border-radius:4px;overflow:hidden;position:relative}
+.factor-fill{height:100%;border-radius:4px;width:0;transition:width .9s cubic-bezier(.16,1,.3,1)}
+.factor-fill.kds{background:linear-gradient(90deg,#0060ff,#2196f3)}
+.factor-fill.ups{background:linear-gradient(90deg,#ff6d00,var(--orange))}
+.factor-fill.ims{background:linear-gradient(90deg,#8e24aa,#ce93d8)}
+.factor-fill.its{background:linear-gradient(90deg,var(--red2),var(--red))}
+.factor-matched{font-family:var(--mono);font-size:.62rem;color:var(--muted);margin-top:1px}
+.factor-matched span{color:var(--dim)}
+.factor-matched .fm-tag{color:#7a9ab5;margin-right:4px}
+.factor-total-row{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;background:rgba(0,212,170,.05);border:1px solid rgba(0,212,170,.12);
+  border-radius:8px;margin-top:4px}
+.factor-total-lbl{font-family:var(--mono);font-size:.68rem;color:var(--muted)}
+.factor-total-val{font-family:var(--mono);font-size:1rem;font-weight:700;color:var(--teal)}
+.factor-formula{font-family:var(--mono);font-size:.62rem;color:var(--muted);
+  padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;margin-top:8px;line-height:1.6}
+.factor-formula .fv{color:var(--text);font-weight:600}
 </style>
 </head>
 <body>
@@ -676,19 +706,77 @@ async function scan(text) {
 }
 
 // ══════════════════════════════════════
-//  RENDER RESULT
+//  RENDER RESULT  —  with factor breakdown
 // ══════════════════════════════════════
 const SC = {CRITICAL:'critical',HIGH:'high',MEDIUM:'medium',SAFE:'safe'};
 const IC = {CRITICAL:'🚨',HIGH:'⚠️',MEDIUM:'⚡',SAFE:'✅'};
+
+// Factor metadata: icon, CSS class, colour for the filled bar label
+const FACTOR_META = {
+  kds: { icon:'🔑', label:'Keyword Density Score',    cls:'kds', hint:'(max 40)' },
+  ups: { icon:'⏱️', label:'Urgency & Pressure Score', cls:'ups', hint:'(max 25)' },
+  ims: { icon:'🏛️', label:'Impersonation Score',       cls:'ims', hint:'(max 20)' },
+  its: { icon:'🔇', label:'Isolation Tactic Score',   cls:'its', hint:'(max 15)' },
+};
+
+function buildFactorHTML(factors) {
+  if (!factors) return '';
+
+  const rows = Object.entries(FACTOR_META).map(([key, meta]) => {
+    const f = factors[key] || {score:0, max:meta.maxPts, matched:[]};
+    const pct = Math.round((f.score / f.max) * 100);
+    const matchedStr = f.matched.length
+      ? f.matched.slice(0,3).map(m => `<span class="fm-tag">"${m}"</span>`).join(' ')
+      : '<span style="color:var(--dim)">none detected</span>';
+
+    return `
+    <div class="factor-row">
+      <div class="factor-row-head">
+        <div class="factor-name"><span class="fi">${meta.icon}</span>${meta.label}</div>
+        <div class="factor-score-label"><span class="fs-val">${f.score}</span> / ${f.max} pts</div>
+      </div>
+      <div class="factor-track">
+        <div class="factor-fill ${key}" data-pct="${pct}" style="width:0%"></div>
+      </div>
+      <div class="factor-matched">${matchedStr}</div>
+    </div>`;
+  }).join('');
+
+  const f = factors;
+  const kds = f.kds?.score||0, ups = f.ups?.score||0, ims = f.ims?.score||0, its = f.its?.score||0;
+  const rawSum = kds + ups + ims + its;
+
+  return `
+  <div class="factor-sec">
+    <div class="factor-title-row">
+      <div class="factor-title">Risk Score Breakdown — 4-Factor Algorithm</div>
+      <div class="factor-legend">Score = KDS + UPS + IMS + ITS</div>
+    </div>
+    <div class="factor-rows">${rows}</div>
+    <div class="factor-total-row">
+      <div class="factor-total-lbl">Combined Raw Score</div>
+      <div class="factor-total-val">${kds} + ${ups} + ${ims} + ${its} = ${Math.min(100, rawSum)} / 100</div>
+    </div>
+    <div class="factor-formula">
+      KDS <span class="fv">${kds}</span> (keyword density) + 
+      UPS <span class="fv">${ups}</span> (urgency) + 
+      IMS <span class="fv">${ims}</span> (impersonation) + 
+      ITS <span class="fv">${its}</span> (isolation)
+      → min(100, ${rawSum}) → with severity floor → <span class="fv">final ${Math.min(100,rawSum)}%</span>
+    </div>
+  </div>`;
+}
 
 function renderResult(data, container) {
   let html = '';
 
   if (data.status === 'SAFE') {
+    const f = data.factors;
     html = `<div class="res-card">
       <div class="rh safe"><div class="rh-l"><div class="rh-ico safe">✅</div>
         <div><div class="rh-title safe">No Scam Detected</div><div class="rh-sub">Report appears clean — stay cautious</div></div></div>
         <div class="sev SAFE">SAFE</div></div>
+      ${f ? buildFactorHTML(f) : ''}
       <div class="safe-body"><div class="safe-tip">💡 ${data.tip}</div></div>
       <div class="helpline"><span class="hl">Cybercrime Helpline: 1930</span><span class="hl">cybercrime.gov.in</span></div>
     </div>`;
@@ -709,10 +797,12 @@ function renderResult(data, container) {
         <div class="sev ${data.severity}">${data.severity}</div></div>
 
       <div class="risk-sec">
-        <div class="risk-hdr"><div class="risk-lbl">Risk Score</div><div class="risk-num ${sc}">${data.risk_score}%</div></div>
+        <div class="risk-hdr"><div class="risk-lbl">Total Risk Score</div><div class="risk-num ${sc}">${data.risk_score}%</div></div>
         <div class="risk-track"><div class="risk-fill ${sc}" data-t="${data.risk_score}"></div></div>
         <div class="risk-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
       </div>
+
+      ${buildFactorHTML(data.factors)}
 
       <div class="kw-sec"><div class="sec-lbl">Detected Trigger Phrases</div><div class="kw-wrap">${chips}</div></div>
       <div class="exp-sec"><div class="sec-lbl" style="margin-bottom:9px">Why This Is A Scam</div><div class="exp-text">${data.explanation}</div></div>
@@ -726,8 +816,16 @@ function renderResult(data, container) {
 
   container.innerHTML = html;
   container.style.display = 'block';
+
+  // Animate main risk bar
   const fill = container.querySelector('.risk-fill');
   if (fill) requestAnimationFrame(() => { fill.style.width = fill.dataset.t + '%'; });
+
+  // Animate factor bars with staggered delay
+  container.querySelectorAll('.factor-fill').forEach((el, i) => {
+    setTimeout(() => { el.style.width = el.dataset.pct + '%'; }, 200 + i * 120);
+  });
+
   container.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 

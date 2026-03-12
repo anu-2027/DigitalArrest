@@ -1,10 +1,49 @@
+"""
+DigitalArmour — Detection Engine v3
+====================================
+Multi-factor risk scoring algorithm with 4 named, explainable components.
+
+ALGORITHM DESIGN
+─────────────────
+Score = KDS + UPS + IMS + ITS   (capped at 100)
+
+  Factor                     Max pts  What it measures
+  ─────────────────────────────────────────────────────
+  KDS  Keyword Density Score    40    Weighted scam-specific phrase matching
+  UPS  Urgency & Pressure Score 25    Time-pressure and fear language
+  IMS  Impersonation Score      20    Authority body / official impersonation
+  ITS  Isolation Tactic Score   15    Secrecy demands, victim isolation
+
+Each factor is scored independently, then combined.
+A severity floor prevents under-reporting on high-danger categories.
+
+SCORING RATIONALE
+─────────────────
+Keyword weights (1-10) reflect exclusivity:
+  10 = phrase almost never appears outside scam context ("digital arrest")
+   7 = high-signal but occasionally legitimate ("money laundering" in news)
+   4 = moderate-signal, needs supporting context ("narcotics")
+   1 = low-signal alone ("tax")
+
+UPS captures the psychological pressure mechanism all scams share:
+immediate deadlines, consequences, fear of inaction.
+
+IMS captures impersonation of the three most-abused authorities in India:
+government agencies (CBI/ED/NCB), telecom (TRAI/DoT), banks.
+
+ITS captures the isolation tactic — keeping victims from family/friends
+so they cannot verify the scam before paying.
+"""
+
 from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
-# ═══════════════════════════════════════════════════════════
-#  DETECTION ENGINE  —  v2 with weighted keyword risk scores
-# ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════
+#  FACTOR 1: KEYWORD DENSITY SCORE (KDS)  —  max 40 points
+#  Weighted phrase matching per scam category.
+#  Score = min(40, matched_weight_sum / top5_max_weight * 40)
+# ═══════════════════════════════════════════════════════════════════
 
 SCAM_PATTERNS = {
     "Digital Arrest": {
@@ -50,26 +89,26 @@ SCAM_PATTERNS = {
     "KYC Fraud": {
         "severity": "HIGH",
         "keywords": {
-            "kyc expired":                10,
-            "update your kyc":            10,
-            "kyc pending":                 9,
-            "your account will be deactivated": 9,
-            "account will be suspended":   9,
-            "your upi blocked":            9,
-            "sbi kyc":                     8,
-            "hdfc kyc":                    8,
-            "paytm kyc":                   8,
-            "google pay kyc":              8,
-            "phonepe kyc":                 8,
-            "re-kyc":                      8,
-            "video kyc":                   7,
-            "kyc update":                  7,
-            "kyc verification":            6,
-            "bank account blocked":        6,
-            "click link to update":        6,
-            "pan card verification":       5,
-            "aadhaar otp":                 5,
-            "link expired":                4,
+            "kyc expired":                      10,
+            "update your kyc":                  10,
+            "kyc pending":                       9,
+            "your account will be deactivated":  9,
+            "account will be suspended":         9,
+            "your upi blocked":                  9,
+            "sbi kyc":                           8,
+            "hdfc kyc":                          8,
+            "paytm kyc":                         8,
+            "google pay kyc":                    8,
+            "phonepe kyc":                       8,
+            "re-kyc":                            8,
+            "video kyc":                         7,
+            "kyc update":                        7,
+            "kyc verification":                  6,
+            "bank account blocked":              6,
+            "click link to update":              6,
+            "pan card verification":             5,
+            "aadhaar otp":                       5,
+            "link expired":                      4,
         },
         "explanation": (
             "This is a KYC (Know Your Customer) fraud. Scammers pretend to be from your bank "
@@ -197,59 +236,233 @@ SCAM_PATTERNS = {
     },
 }
 
-SEVERITY_FLOOR = {"CRITICAL": 70, "HIGH": 50, "MEDIUM": 30}
+
+# ═══════════════════════════════════════════════════════════════════
+#  FACTOR 2: URGENCY & PRESSURE SCORE (UPS)  —  max 25 points
+#  Scammers always create artificial time pressure.
+#  Each phrase matched adds points; capped at 25.
+# ═══════════════════════════════════════════════════════════════════
+
+URGENCY_PHRASES = {
+    # Extreme time pressure (8 pts each)
+    "within 2 hours":         8,
+    "within 24 hours":        8,
+    "immediately":            7,
+    "urgent":                 6,
+    "last chance":            8,
+    "expires today":          8,
+    "final warning":          8,
+    # Consequence language (6 pts)
+    "or else":                6,
+    "failure to comply":      8,
+    "ignore at your own risk":8,
+    "legal action":           6,
+    "consequences":           5,
+    "penalty":                5,
+    # Action pressure (5 pts)
+    "act now":                6,
+    "do not delay":           6,
+    "respond immediately":    6,
+    "verify now":             5,
+    "call back immediately":  6,
+    "limited time":           5,
+    "offer expires":          5,
+    "click now":              5,
+}
 
 
-def compute_risk_score(matched_weights, all_weights, severity):
+# ═══════════════════════════════════════════════════════════════════
+#  FACTOR 3: IMPERSONATION SCORE (IMS)  —  max 20 points
+#  Claiming to be a known authority body adds credibility for scammers.
+# ═══════════════════════════════════════════════════════════════════
+
+IMPERSONATION_PHRASES = {
+    # Government / Law enforcement (high weight)
+    "central bureau of investigation": 10,
+    "cbi":                              8,
+    "enforcement directorate":          9,
+    "narcotics control bureau":         9,
+    "ncb":                              7,
+    "cyber crime police":               8,
+    "cybercrime cell":                  8,
+    "supreme court":                    8,
+    "high court":                       7,
+    # Telecom regulators
+    "telecom regulatory authority":     9,
+    "trai":                             7,
+    "department of telecom":            8,
+    "dot":                              5,
+    # Financial / Tax
+    "income tax department":            8,
+    "income tax officer":               8,
+    "enforcement directorate":          9,
+    "reserve bank of india":            8,
+    "rbi":                              7,
+    "sebi":                             7,
+    # Banks (impersonation)
+    "sbi":                              5,
+    "hdfc bank":                        5,
+    "icici bank":                       5,
+    "axis bank":                        5,
+    "kotak bank":                       5,
+}
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  FACTOR 4: ISOLATION TACTIC SCORE (ITS)  —  max 15 points
+#  Scammers isolate victims so they can't verify / get help.
+# ═══════════════════════════════════════════════════════════════════
+
+ISOLATION_PHRASES = {
+    "do not tell anyone":    15,
+    "don't tell anyone":     15,
+    "do not inform anyone":  15,
+    "keep this confidential":12,
+    "do not share":           8,
+    "stay on call":          10,
+    "do not disconnect":     10,
+    "remain on the line":    10,
+    "do not contact":         8,
+    "do not call police":    12,
+    "this is confidential":  10,
+    "secret":                 6,
+    "between us":             6,
+}
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  FACTOR SCORING FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+def score_kds(matched_weights: dict, all_weights: dict) -> int:
+    """
+    Keyword Density Score (KDS) — max 40 points.
+    Normalises matched weight sum against top-5 keyword maximum.
+    """
     if not matched_weights:
         return 0
     top5_max = sum(sorted(all_weights.values(), reverse=True)[:5])
     raw = sum(matched_weights.values())
-    score = int(min(100, (raw / top5_max) * 100))
-    return max(score, SEVERITY_FLOOR.get(severity, 0))
+    return int(min(40, (raw / top5_max) * 40))
 
 
-def detect_scam(text):
+def score_ups(text_lower: str) -> tuple[int, list]:
+    """
+    Urgency & Pressure Score (UPS) — max 25 points.
+    Returns (score, matched_phrases).
+    """
+    matched = {ph: wt for ph, wt in URGENCY_PHRASES.items() if ph in text_lower}
+    score = int(min(25, sum(matched.values())))
+    return score, list(matched.keys())
+
+
+def score_ims(text_lower: str) -> tuple[int, list]:
+    """
+    Impersonation Score (IMS) — max 20 points.
+    Returns (score, matched_phrases).
+    """
+    matched = {ph: wt for ph, wt in IMPERSONATION_PHRASES.items() if ph in text_lower}
+    score = int(min(20, sum(matched.values())))
+    return score, list(matched.keys())
+
+
+def score_its(text_lower: str) -> tuple[int, list]:
+    """
+    Isolation Tactic Score (ITS) — max 15 points.
+    Returns (score, matched_phrases).
+    """
+    matched = {ph: wt for ph, wt in ISOLATION_PHRASES.items() if ph in text_lower}
+    score = int(min(15, sum(matched.values())))
+    return score, list(matched.keys())
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  SEVERITY FLOOR — ensures CRITICAL scams always reflect real danger
+# ═══════════════════════════════════════════════════════════════════
+
+SEVERITY_FLOOR = {"CRITICAL": 70, "HIGH": 50, "MEDIUM": 30}
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  MAIN DETECTION FUNCTION
+# ═══════════════════════════════════════════════════════════════════
+
+def detect_scam(text: str) -> dict:
+    """
+    Run all 4 scoring factors against the input text.
+    Returns the highest-scoring scam category with full factor breakdown.
+    """
     text_lower = text.lower()
+
+    # Compute cross-cutting factors once (same for all categories)
+    ups_score, ups_matched = score_ups(text_lower)
+    ims_score, ims_matched = score_ims(text_lower)
+    its_score, its_matched = score_its(text_lower)
+
     scores = {}
 
     for scam_type, data in SCAM_PATTERNS.items():
-        kw_map = data["keywords"]
+        kw_map  = data["keywords"]
         matched = {kw: wt for kw, wt in kw_map.items() if kw in text_lower}
-        if matched:
-            risk = compute_risk_score(matched, kw_map, data["severity"])
-            scores[scam_type] = {
-                "matched_keywords": list(matched.keys()),
-                "keyword_weights":  matched,
-                "risk_score":       risk,
-                "explanation":      data["explanation"],
-                "action":           data["action"],
-                "severity":         data["severity"],
-            }
+
+        if not matched:
+            continue  # category not triggered at all
+
+        kds = score_kds(matched, kw_map)
+
+        # Combined raw score
+        raw_total = kds + ups_score + ims_score + its_score
+        final_score = max(
+            min(100, raw_total),
+            SEVERITY_FLOOR.get(data["severity"], 0)
+        )
+
+        scores[scam_type] = {
+            "matched_keywords": list(matched.keys()),
+            "keyword_weights":  matched,
+            "risk_score":       final_score,
+            "explanation":      data["explanation"],
+            "action":           data["action"],
+            "severity":         data["severity"],
+            # Factor breakdown (sent to frontend for visualization)
+            "factors": {
+                "kds": {"score": kds,       "max": 40, "label": "Keyword Density",     "matched": list(matched.keys())},
+                "ups": {"score": ups_score, "max": 25, "label": "Urgency & Pressure",  "matched": ups_matched},
+                "ims": {"score": ims_score, "max": 20, "label": "Impersonation",       "matched": ims_matched},
+                "its": {"score": its_score, "max": 15, "label": "Isolation Tactics",   "matched": its_matched},
+            },
+        }
 
     if not scores:
         return {
-            "status": "SAFE",
+            "status":  "SAFE",
             "message": "No known scam patterns detected.",
             "tip": (
                 "Stay alert — scammers constantly evolve their language. "
                 "When in doubt: never share OTPs, never pay unknown callers, "
                 "and always verify through official channels."
             ),
+            "factors": {
+                "kds": {"score": 0, "max": 40, "label": "Keyword Density",    "matched": []},
+                "ups": {"score": 0, "max": 25, "label": "Urgency & Pressure", "matched": []},
+                "ims": {"score": 0, "max": 20, "label": "Impersonation",      "matched": []},
+                "its": {"score": 0, "max": 15, "label": "Isolation Tactics",  "matched": []},
+            },
         }
 
     ranked = sorted(scores.items(), key=lambda x: x[1]["risk_score"], reverse=True)
-    pn, pd = ranked[0]
+    pname, pdata = ranked[0]
 
     return {
         "status":           "SCAM_DETECTED",
-        "primary_scam":     pn,
-        "severity":         pd["severity"],
-        "risk_score":       pd["risk_score"],
-        "matched_keywords": pd["matched_keywords"],
-        "keyword_weights":  pd["keyword_weights"],
-        "explanation":      pd["explanation"],
-        "action":           pd["action"],
+        "primary_scam":     pname,
+        "severity":         pdata["severity"],
+        "risk_score":       pdata["risk_score"],
+        "matched_keywords": pdata["matched_keywords"],
+        "keyword_weights":  pdata["keyword_weights"],
+        "explanation":      pdata["explanation"],
+        "action":           pdata["action"],
+        "factors":          pdata["factors"],
         "other_matches": [
             {"type": k, "risk_score": v["risk_score"], "severity": v["severity"]}
             for k, v in ranked[1:]
@@ -284,11 +497,11 @@ def analytics():
         "money_protected":      "₹2,34,000",
         "users_warned":         312,
         "breakdown": [
-            {"type": "Digital Arrest",  "pct": 64, "color": "#ff4560"},
-            {"type": "KYC Fraud",       "pct": 18, "color": "#f5c400"},
-            {"type": "IT Dept Scam",    "pct":  9, "color": "#ff9800"},
-            {"type": "TRAI Scam",       "pct":  6, "color": "#0096ff"},
-            {"type": "Prize Scam",      "pct":  3, "color": "#00d4aa"},
+            {"type": "Digital Arrest", "pct": 64, "color": "#ff4560"},
+            {"type": "KYC Fraud",      "pct": 18, "color": "#f5c400"},
+            {"type": "IT Dept Scam",   "pct":  9, "color": "#ff9800"},
+            {"type": "TRAI Scam",      "pct":  6, "color": "#0096ff"},
+            {"type": "Prize Scam",     "pct":  3, "color": "#00d4aa"},
         ],
         "recent": [
             {"time": "2 min ago",  "type": "Digital Arrest", "city": "Bengaluru"},
@@ -306,29 +519,30 @@ def test_cases():
         {
             "id": 1, "label": "Digital Arrest — CBI Officer", "tag": "CRITICAL",
             "message": (
-                "This is Officer Rajiv Sharma from the Central Bureau of Investigation. "
-                "Your Aadhaar number is linked to a money laundering case worth 4 crore rupees. "
+                "This is Officer Rajiv Sharma from the Central Bureau of Investigation (CBI). "
+                "Your Aadhaar number is linked to a money laundering case. "
                 "You are under digital arrest effective immediately. A warrant has been issued. "
                 "Stay on this video call and do not disconnect. Do not tell anyone about this call "
-                "or you will be taken into physical custody within 2 hours."
+                "or you will be taken into physical custody within 2 hours. Failure to comply "
+                "will result in legal action."
             ),
         },
         {
             "id": 2, "label": "KYC Fraud — SBI Account Block", "tag": "HIGH",
             "message": (
-                "Dear SBI Customer, your SBI KYC has expired as of today. "
+                "Dear SBI customer, your SBI KYC has expired as of today. "
                 "Your account will be deactivated within 24 hours if KYC is not updated. "
-                "Click to update your KYC: sbi-kyc-update.net/verify "
+                "Click to update your KYC immediately: sbi-kyc-update.net/verify "
                 "Enter your Aadhaar OTP to complete re-KYC. Ignore at your own risk."
             ),
         },
         {
             "id": 3, "label": "TRAI Scam — SIM Disconnection", "tag": "HIGH",
             "message": (
-                "URGENT TRAI Notice: Illegal use of your number has been detected. "
+                "URGENT: TRAI notice — illegal use of your number has been detected. "
                 "Your SIM card will be disconnected within 2 hours by the Department of Telecom. "
                 "Your mobile connection is suspended pending verification. "
-                "Press 9 to speak with a DoT officer to avoid disconnection."
+                "Press 9 to speak with a DoT officer immediately to avoid disconnection."
             ),
         },
         {
@@ -336,17 +550,17 @@ def test_cases():
             "message": (
                 "Congratulations! You have won Rs 25,00,000 in the KBC Lucky Draw 2025. "
                 "You are our lucky winner selected from 2 crore participants. "
-                "To claim your prize money, pay a processing fee of Rs 2500 "
-                "to activate your KBC winner account. Contact our agent to proceed."
+                "To claim your prize money, pay a processing fee of Rs 2500 to activate your "
+                "KBC winner account. Offer expires today. Act now and call back immediately."
             ),
         },
         {
             "id": 5, "label": "IT Dept Scam — TDS Refund", "tag": "HIGH",
             "message": (
-                "Income Tax Department Alert: Your TDS refund of Rs 18,450 has been approved. "
+                "Income Tax Department alert: your TDS refund of Rs 18,450 has been approved. "
                 "Your PAN card has been flagged for unreported income and financial irregularity. "
-                "Click to claim refund: incometax-refund.net/claim "
-                "Failure to comply may result in tax arrest and IT raid proceedings."
+                "Click to claim refund: incometax-refund.net/claim — respond immediately. "
+                "Failure to comply may result in tax arrest and IT raid proceedings within 24 hours."
             ),
         },
     ])
