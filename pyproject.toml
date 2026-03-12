@@ -1,7 +1,0 @@
-[project]
-name = "digital-arrest"
-version = "1.0.0"
-requires-python = ">=3.10"
-dependencies = [
-    "flask>=2.3.0",
-]
