@@ -418,6 +418,296 @@ CONTEXT_GROUPS = {
 #  FACTOR SCORING FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════
+#  MULTILINGUAL PHRASE NORMALIZATION
+#  Maps scam phrases from Hindi, Kannada, Tamil, Telugu (and common
+#  Roman-script transliterations) to their English equivalents so
+#  the detection engine can score them with the same weights.
+#  Each tuple: (regional_phrase, english_equivalent)
+#  Longer / more specific phrases come first to avoid partial-match
+#  issues with shorter sub-strings.
+# ═══════════════════════════════════════════════════════════════════
+
+MULTILINGUAL_PHRASE_MAP = [
+    # ── HINDI (Devanagari) ──────────────────────────────────────────
+    # Digital Arrest
+    ("डिजिटल गिरफ्तारी",          "digital arrest"),
+    ("डिजिटल अरेस्ट",              "digital arrest"),
+    ("साइबर गिरफ्तारी",           "cyber arrest"),
+    ("आप गिरफ्तार हैं",           "you are under arrest"),
+    ("प्रवर्तन निदेशालय",         "enforcement directorate"),
+    ("सीबीआई अधिकारी",            "cbi officer"),
+    ("ईडी अधिकारी",               "ed officer"),
+    ("एनसीबी अधिकारी",            "ncb officer"),
+    ("केंद्रीय जांच ब्यूरो",      "central bureau of investigation"),
+    ("वारंट जारी किया",           "warrant issued"),
+    ("वीडियो कॉल पर रहें",        "stay on call"),
+    ("कॉल मत काटो",               "do not disconnect"),
+    ("कॉल मत काटिए",              "do not disconnect"),
+    ("किसी को मत बताओ",           "do not tell anyone"),
+    ("किसी को न बताएं",           "do not tell anyone"),
+    ("वीडियो कॉल वेरिफिकेशन",    "video call verification"),
+    ("मनी लॉन्ड्रिंग",            "money laundering"),
+    ("अवैध गतिविधि",              "illegal activity detected"),
+    ("नारकोटिक्स",                "narcotics"),
+    ("राष्ट्रीय सुरक्षा",         "national security"),
+    # KYC Fraud
+    ("केवाईसी समाप्त हो गया",     "kyc expired"),
+    ("केवाईसी एक्सपायर",          "kyc expired"),
+    ("केवाईसी अपडेट करें",        "update your kyc"),
+    ("केवाईसी पेंडिंग",           "kyc pending"),
+    ("खाता बंद हो जाएगा",         "your account will be deactivated"),
+    ("खाता निष्क्रिय हो जाएगा",  "your account will be deactivated"),
+    ("खाता सस्पेंड हो जाएगा",    "account will be suspended"),
+    ("यूपीआई ब्लॉक",              "your upi blocked"),
+    ("लिंक पर क्लिक करें",        "click link to update"),
+    ("आधार ओटीपी",                "aadhaar otp"),
+    ("पैन कार्ड वेरिफिकेशन",      "pan card verification"),
+    ("बैंक खाता ब्लॉक",           "bank account blocked"),
+    # TRAI Scam
+    ("सिम कार्ड ब्लॉक",           "sim card blocked"),
+    ("सिम बंद हो जाएगी",          "sim card blocked"),
+    ("मोबाइल नंबर बंद",           "mobile number deactivated"),
+    ("मोबाइल कनेक्शन बंद",        "mobile connection suspended"),
+    ("9 दबाएं",                   "press 9 to speak"),
+    ("1 दबाएं",                   "press 1 to avoid"),
+    ("दूरसंचार विभाग",            "department of telecom"),
+    ("ट्राई",                     "trai"),
+    # Prize / Lottery
+    ("बधाई हो आपने जीता",         "congratulations you won"),
+    ("आपने जीत लिया",             "you have won"),
+    ("भाग्यशाली विजेता",          "lucky winner"),
+    ("लॉटरी विजेता",              "lottery winner"),
+    ("पुरस्कार राशि",             "prize money"),
+    ("पुरस्कार का दावा करें",     "claim your prize"),
+    ("प्रोसेसिंग फीस",            "processing fee"),
+    ("पंजीकरण शुल्क",             "send registration fee"),
+    ("केबीसी विजेता",             "kbc winner"),
+    ("कौन बनेगा करोड़पति",        "kaun banega crorepati"),
+    ("लकी ड्रॉ",                  "lucky draw"),
+    # IT Department
+    ("आयकर विभाग",                "income tax department"),
+    ("आयकर अधिकारी",              "income tax officer"),
+    ("टैक्स चोरी",                "tax evasion"),
+    ("वित्तीय अनियमितता",         "financial irregularity"),
+    ("काला धन",                   "black money"),
+    ("अघोषित आय",                 "unreported income"),
+    ("टीडीएस रिफंड",              "tds refund"),
+    ("आईटीआर रिफंड",              "itr refund"),
+    ("टैक्स रिफंड",               "tax refund"),
+    ("रिफंड क्लेम करें",           "click to claim refund"),
+    ("आयकर छापा",                  "it raid"),
+    ("टैक्स नोटिस",               "income tax notice"),
+    ("पैन कार्ड फ्लैग",           "your pan card flagged"),
+    # Urgency (Hindi)
+    ("२४ घंटे के भीतर",           "within 24 hours"),
+    ("24 घंटे के भीतर",           "within 24 hours"),
+    ("2 घंटे के भीतर",            "within 2 hours"),
+    ("तुरंत",                     "immediately"),
+    ("अंतिम चेतावनी",             "final warning"),
+    ("कानूनी कार्रवाई",           "legal action"),
+    ("अभी करें",                  "act now"),
+    # Isolation (Hindi)
+    ("इस कॉल पर रहें",            "stay on call"),
+    ("पुलिस को मत बताओ",          "do not call police"),
+    ("गोपनीय रखें",               "keep this confidential"),
+
+    # ── HINDI ROMAN TRANSLITERATION ────────────────────────────────
+    ("digital giraftari",         "digital arrest"),
+    ("digital giraftaar",         "digital arrest"),
+    ("cyber giraftari",           "cyber arrest"),
+    ("aap giraftaar hain",        "you are under arrest"),
+    ("cbi adhikari",              "cbi officer"),
+    ("ed adhikari",               "ed officer"),
+    ("ncb adhikari",              "ncb officer"),
+    ("call mat kato",             "do not disconnect"),
+    ("call mat katiye",           "do not disconnect"),
+    ("kisi ko mat batao",         "do not tell anyone"),
+    ("kisi ko na batayen",        "do not tell anyone"),
+    ("money laundering ka case",  "money laundering"),
+    ("kyc khatam ho gaya",        "kyc expired"),
+    ("kyc update karo",           "update your kyc"),
+    ("account band ho jayega",    "your account will be deactivated"),
+    ("upi block ho gaya",         "your upi blocked"),
+    ("sim band ho jayegi",        "sim card blocked"),
+    ("trai notice",               "trai"),
+    ("aapne jeet liya",           "you have won"),
+    ("processing fee bharo",      "processing fee"),
+    ("aaykar vibhag",             "income tax department"),
+    ("tax chhori",                "tax evasion"),
+    ("kala dhan",                 "black money"),
+    ("turant",                    "immediately"),
+    ("antim chetavni",            "final warning"),
+
+    # ── KANNADA (Kannada script) ────────────────────────────────────
+    # Digital Arrest
+    ("ಡಿಜಿಟಲ್ ಬಂಧನ",              "digital arrest"),
+    ("ಸೈಬರ್ ಬಂಧನ",               "cyber arrest"),
+    ("ನೀವು ಬಂಧನದಲ್ಲಿದ್ದೀರಿ",     "you are under arrest"),
+    ("ಸಿಬಿಐ ಅಧಿಕಾರಿ",            "cbi officer"),
+    ("ಇಡಿ ಅಧಿಕಾರಿ",              "ed officer"),
+    ("ಜಾರಿ ನಿರ್ದೇಶನಾಲಯ",         "enforcement directorate"),
+    ("ವಾರಂಟ್ ಜಾರಿ",              "warrant issued"),
+    ("ಕರೆ ತಡೆಯಬೇಡಿ",             "do not disconnect"),
+    ("ಯಾರಿಗೂ ಹೇಳಬೇಡಿ",           "do not tell anyone"),
+    ("ವೀಡಿಯೊ ಕರೆ ಪರಿಶೀಲನೆ",     "video call verification"),
+    ("ಮನಿ ಲಾಂಡ್ರಿಂಗ್",           "money laundering"),
+    ("ಅಕ್ರಮ ಚಟುವಟಿಕೆ",           "illegal activity detected"),
+    # KYC Fraud
+    ("ಕೆವೈಸಿ ಅವಧಿ ಮೀರಿದೆ",       "kyc expired"),
+    ("ಕೆವೈಸಿ ನವೀಕರಿಸಿ",          "update your kyc"),
+    ("ಖಾತೆ ನಿಷ್ಕ್ರಿಯಗೊಳಿಸಲಾಗುತ್ತದೆ", "your account will be deactivated"),
+    ("ಖಾತೆ ನಿಲ್ಲಿಸಲಾಗುತ್ತದೆ",    "your account will be deactivated"),
+    ("ಯುಪಿಐ ಬ್ಲಾಕ್",             "your upi blocked"),
+    ("ಆಧಾರ್ ಒಟಿಪಿ",              "aadhaar otp"),
+    ("ಬ್ಯಾಂಕ್ ಖಾತೆ ಬ್ಲಾಕ್",      "bank account blocked"),
+    ("ಲಿಂಕ್ ಕ್ಲಿಕ್ ಮಾಡಿ",        "click link to update"),
+    # TRAI
+    ("ಸಿಮ್ ಕಾರ್ಡ್ ಬ್ಲಾಕ್",       "sim card blocked"),
+    ("ಸಿಮ್ ಸಂಪರ್ಕ ಕಡಿತ",         "sim card blocked"),
+    ("ಮೊಬೈಲ್ ಸಂಖ್ಯೆ ಸ್ಥಗಿತ",     "mobile number deactivated"),
+    ("ದೂರಸಂಚಾರ ಇಲಾಖೆ",           "department of telecom"),
+    ("ಟ್ರಾಯ್",                   "trai"),
+    ("9 ಒತ್ತಿರಿ",                "press 9 to speak"),
+    # Prize
+    ("ನೀವು ಗೆದ್ದಿದ್ದೀರಿ",        "you have won"),
+    ("ಅಭಿನಂದನೆ ನೀವು ಗೆದ್ದಿದ್ದೀರಿ", "congratulations you won"),
+    ("ಭಾಗ್ಯಶಾಲಿ ವಿಜೇತ",          "lucky winner"),
+    ("ಲಾಟರಿ ವಿಜೇತ",              "lottery winner"),
+    ("ಬಹುಮಾನ ಮೊತ್ತ",             "prize money"),
+    ("ಪ್ರಕ್ರಿಯೆ ಶುಲ್ಕ",           "processing fee"),
+    ("ಕೆಬಿಸಿ ವಿಜೇತ",             "kbc winner"),
+    # IT Dept
+    ("ಆದಾಯ ತೆರಿಗೆ ಇಲಾಖೆ",        "income tax department"),
+    ("ಆದಾಯ ತೆರಿಗೆ ಅಧಿಕಾರಿ",      "income tax officer"),
+    ("ತೆರಿಗೆ ಮರುಪಾವತಿ",          "tax refund"),
+    ("ಟಿಡಿಎಸ್ ರಿಫಂಡ್",           "tds refund"),
+    ("ತೆರಿಗೆ ವಂಚನೆ",             "tax evasion"),
+    ("ಕಪ್ಪು ಹಣ",                 "black money"),
+    ("ಆದಾಯ ತೆರಿಗೆ",              "income tax"),
+    # Urgency / Isolation (Kannada)
+    ("ತಕ್ಷಣ",                    "immediately"),
+    ("24 ಗಂಟೆಯೊಳಗೆ",            "within 24 hours"),
+    ("ಕಾನೂನು ಕ್ರಮ",             "legal action"),
+    ("ಅಂತಿಮ ಎಚ್ಚರಿಕೆ",           "final warning"),
+
+    # ── TAMIL (Tamil script) ────────────────────────────────────────
+    # Digital Arrest
+    ("டிஜிட்டல் கைது",           "digital arrest"),
+    ("சைபர் கைது",               "cyber arrest"),
+    ("நீங்கள் கைது செய்யப்பட்டுள்ளீர்கள்", "you are under arrest"),
+    ("சிபிஐ அதிகாரி",           "cbi officer"),
+    ("இடி அதிகாரி",              "ed officer"),
+    ("அமலாக்க இயக்ககம்",         "enforcement directorate"),
+    ("வாரண்ட் பிறப்பிக்கப்பட்டது", "warrant issued"),
+    ("அழைப்பை துண்டிக்காதீர்கள்", "do not disconnect"),
+    ("யாரிடமும் சொல்லாதீர்கள்",  "do not tell anyone"),
+    ("வீடியோ அழைப்பு சரிபார்ப்பு", "video call verification"),
+    ("பண மோசடி",                 "money laundering"),
+    ("சட்டவிரோத செயல்பாடு",      "illegal activity detected"),
+    # KYC
+    ("கேஒய்சி காலாவதியானது",     "kyc expired"),
+    ("கேஒய்சி புதுப்பிக்கவும்",  "update your kyc"),
+    ("கணக்கு நிறுத்தப்படும்",    "your account will be deactivated"),
+    ("யுபிஐ தடுக்கப்பட்டுள்ளது", "your upi blocked"),
+    ("ஆதார் ஒடிபி",              "aadhaar otp"),
+    ("வங்கி கணக்கு தடுக்கப்பட்டது", "bank account blocked"),
+    ("இணைப்பை கிளிக் செய்யவும்", "click link to update"),
+    # TRAI
+    ("சிம் தடுக்கப்படும்",       "sim card blocked"),
+    ("மொபைல் எண் நிறுத்தப்படும்", "mobile number deactivated"),
+    ("தொலைத்தொடர்பு துறை",       "department of telecom"),
+    ("டிரை",                     "trai"),
+    ("9 ஐ அழுத்தவும்",           "press 9 to speak"),
+    # Prize
+    ("நீங்கள் வென்றீர்கள்",      "you have won"),
+    ("வாழ்த்துகள் நீங்கள் வென்றீர்கள்", "congratulations you won"),
+    ("அதிர்ஷ்ட வெற்றியாளர்",     "lucky winner"),
+    ("லாட்டரி வெற்றியாளர்",      "lottery winner"),
+    ("பரிசு தொகை",               "prize money"),
+    ("செயலாக்க கட்டணம்",         "processing fee"),
+    ("கேபிசி வெற்றியாளர்",       "kbc winner"),
+    # IT Dept
+    ("வருமான வரி துறை",          "income tax department"),
+    ("வருமான வரி அதிகாரி",       "income tax officer"),
+    ("வரி திரும்பப் பெறுதல்",    "tax refund"),
+    ("டிடிஎஸ் திரும்பப் பெறுதல்", "tds refund"),
+    ("வரி ஏய்ப்பு",              "tax evasion"),
+    ("கருப்பு பணம்",             "black money"),
+    ("வருமான வரி",               "income tax"),
+    # Urgency / Isolation (Tamil)
+    ("உடனடியாக",                 "immediately"),
+    ("24 மணி நேரத்தில்",         "within 24 hours"),
+    ("சட்ட நடவடிக்கை",           "legal action"),
+    ("இறுதி எச்சரிக்கை",         "final warning"),
+
+    # ── TELUGU (Telugu script) ──────────────────────────────────────
+    # Digital Arrest
+    ("డిజిటల్ అరెస్ట్",          "digital arrest"),
+    ("సైబర్ అరెస్ట్",            "cyber arrest"),
+    ("మీరు అరెస్ట్ అయ్యారు",    "you are under arrest"),
+    ("సిబిఐ అధికారి",            "cbi officer"),
+    ("ఇడి అధికారి",              "ed officer"),
+    ("అమలు దర్యాప్తు విభాగం",   "enforcement directorate"),
+    ("వారెంట్ జారీ చేయబడింది",   "warrant issued"),
+    ("కాల్ కట్ చేయకండి",        "do not disconnect"),
+    ("ఎవరికీ చెప్పకండి",         "do not tell anyone"),
+    ("వీడియో కాల్ వెరిఫికేషన్",  "video call verification"),
+    ("మనీ లాండరింగ్",            "money laundering"),
+    ("చట్టవిరుద్ధ కార్యకలాపం",  "illegal activity detected"),
+    # KYC
+    ("కేవైసి గడువు తీరింది",     "kyc expired"),
+    ("కేవైసి అప్‌డేట్ చేయండి",   "update your kyc"),
+    ("ఖాతా నిలిపివేయబడుతుంది",  "your account will be deactivated"),
+    ("యుపిఐ బ్లాక్",             "your upi blocked"),
+    ("ఆధార్ ఓటీపీ",              "aadhaar otp"),
+    ("బ్యాంక్ ఖాతా బ్లాక్",      "bank account blocked"),
+    ("లింక్ క్లిక్ చేయండి",      "click link to update"),
+    # TRAI
+    ("సిమ్ కార్డ్ బ్లాక్",       "sim card blocked"),
+    ("మొబైల్ నంబర్ నిలిపివేయబడింది", "mobile number deactivated"),
+    ("టెలికమ్యూనికేషన్ విభాగం",  "department of telecom"),
+    ("ట్రాయ్",                   "trai"),
+    ("9 నొక్కండి",               "press 9 to speak"),
+    # Prize
+    ("మీరు గెలిచారు",            "you have won"),
+    ("అభినందనలు మీరు గెలిచారు",  "congratulations you won"),
+    ("అదృష్ట విజేత",             "lucky winner"),
+    ("లాటరీ విజేత",              "lottery winner"),
+    ("బహుమతి మొత్తం",            "prize money"),
+    ("ప్రాసెసింగ్ ఫీజు",         "processing fee"),
+    ("కేబిసి విజేత",             "kbc winner"),
+    # IT Dept
+    ("ఆదాయపు పన్ను విభాగం",      "income tax department"),
+    ("ఆదాయపు పన్ను అధికారి",     "income tax officer"),
+    ("పన్ను రిఫండ్",             "tax refund"),
+    ("టిడిఎస్ రిఫండ్",           "tds refund"),
+    ("పన్ను ఎగవేత",              "tax evasion"),
+    ("నల్ల ధనం",                 "black money"),
+    ("ఆదాయపు పన్ను",             "income tax"),
+    # Urgency / Isolation (Telugu)
+    ("వెంటనే",                   "immediately"),
+    ("24 గంటలలోపు",              "within 24 hours"),
+    ("చట్టపరమైన చర్య",           "legal action"),
+    ("చివరి హెచ్చరిక",           "final warning"),
+]
+
+
+def normalize_multilingual(text: str) -> str:
+    """
+    Replace regional-script scam phrases with English equivalents
+    so the detection engine can score them correctly.
+    The original text is preserved alongside the normalized terms.
+    """
+    normalized = text
+    for regional, english in MULTILINGUAL_PHRASE_MAP:
+        if regional in normalized:
+            # Append the English equivalent rather than replace, so the
+            # original script text is still visible in matched_keywords display
+            normalized = normalized.replace(regional, f"{regional} {english}")
+    return normalized
+
+
 def apply_context_boost(
     matched_weights: dict,
     scam_type: str,
@@ -526,7 +816,7 @@ def detect_scam(text: str) -> dict:
       should NOT force CRITICAL (70%) on its own. The floor is a boost
       for real detections, not a catch-all for any keyword hit.
     """
-    text_lower = text.lower()
+    text_lower = normalize_multilingual(text).lower()
 
     # Compute cross-cutting factors once (same for all categories)
     ups_score, ups_matched = score_ups(text_lower)
