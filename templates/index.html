@@ -330,6 +330,29 @@ footer a{color:var(--teal);text-decoration:none}
   padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;margin-top:8px;line-height:1.6}
 .factor-formula .fv{color:var(--text);font-weight:600}
 
+/* ── PREVIOUS SCANS HISTORY ── */
+.history-section{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  overflow:hidden;animation:up .5s .25s ease both}
+.history-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:13px 18px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.2)}
+.history-title{font-size:.92rem;font-weight:700}
+.hist-clear-btn{background:transparent;border:1px solid var(--border2);color:var(--muted);
+  font-family:var(--sans);font-size:.72rem;padding:4px 12px;border-radius:6px;
+  cursor:pointer;transition:all .2s}
+.hist-clear-btn:hover{border-color:var(--red);color:var(--red)}
+.hist-empty{padding:18px;font-family:var(--mono);font-size:.72rem;color:var(--muted);text-align:center}
+.hist-item{display:flex;align-items:center;gap:12px;padding:10px 18px;
+  border-bottom:1px solid var(--border);transition:background .15s;cursor:default}
+.hist-item:last-child{border-bottom:none}
+.hist-item:hover{background:rgba(255,255,255,.02)}
+.hist-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.hist-info{flex:1;min-width:0}
+.hist-type{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-time{font-family:var(--mono);font-size:.62rem;color:var(--muted);margin-top:2px}
+.hist-score{font-family:var(--mono);font-size:.78rem;font-weight:700;flex-shrink:0}
+.hist-sev{font-family:var(--mono);font-size:.58rem;letter-spacing:.8px;padding:2px 8px;
+  border-radius:4px;flex-shrink:0}
+
 /* ── HELPLINE INTERACTIVE ── */
 .helpline a{color:inherit;text-decoration:none;transition:opacity .15s}
 .helpline a:hover{opacity:.75;text-decoration:underline}
@@ -542,8 +565,16 @@ footer a{color:var(--teal);text-decoration:none}
   <!-- Demo test cases -->
   <div class="demo-section">
     <div class="demo-title">🧪 Demo Test Cases</div>
-    <div class="demo-sub">Click to auto-fill the form and scan — judge-ready</div>
     <div class="demo-grid" id="demoGrid"></div>
+  </div>
+
+  <!-- Previous Scams History -->
+  <div class="history-section" id="historySection">
+    <div class="history-hdr">
+      <div class="history-title">🕓 Your Previous Scans</div>
+      <button class="hist-clear-btn" onclick="clearHistory()">Clear</button>
+    </div>
+    <div id="historyList"><div class="hist-empty">No scans yet — your results will appear here.</div></div>
   </div>
 
 </div><!-- /left -->
@@ -592,16 +623,6 @@ footer a{color:var(--teal);text-decoration:none}
     </div>
   </div>
 
-  <div class="info-card">
-    <div class="info-title">🛡️ How DigitalArmour Works</div>
-    <div class="info-rows">
-      <div class="info-row"><span>📋</span> You describe the call — we build the detection string</div>
-      <div class="info-row"><span>⚖️</span> Weighted keyword scoring (1–10 per signal phrase)</div>
-      <div class="info-row"><span>📊</span> Risk score from 0–100% with severity colour coding</div>
-      <div class="info-row"><span>🏷️</span> 5 categories, 65+ pattern keywords</div>
-      <div class="info-row"><span>⚡</span> No data sent to third parties — 100% local</div>
-    </div>
-  </div>
 </div>
 
 </main>
@@ -871,6 +892,13 @@ function renderResult(data, container) {
   });
 
   container.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+  // Save to history
+  if (data.status === 'SCAM_DETECTED') {
+    saveToHistory({ type: data.primary_scam, severity: data.severity, score: data.risk_score });
+  } else {
+    saveToHistory({ type: 'No Scam Detected', severity: 'SAFE', score: 0 });
+  }
 }
 
 function clearResult() {
@@ -961,11 +989,64 @@ function runDemo(id) {
 }
 
 // ══════════════════════════════════════
+//  SCAN HISTORY  (localStorage)
+// ══════════════════════════════════════
+const HIST_KEY = 'da_scan_history';
+const SEV_COLOR = { CRITICAL:'#ff1744', HIGH:'#ff3d5a', MEDIUM:'#f5c400', SAFE:'#00e096' };
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch { return []; }
+}
+
+function saveToHistory(entry) {
+  const history = getHistory();
+  history.unshift({
+    type:     entry.type,
+    severity: entry.severity,
+    score:    entry.score,
+    time:     new Date().toLocaleString('en-IN', { dateStyle:'short', timeStyle:'short' }),
+    ts:       Date.now(),
+  });
+  // Keep last 20 entries
+  localStorage.setItem(HIST_KEY, JSON.stringify(history.slice(0, 20)));
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = getHistory();
+  const list = document.getElementById('historyList');
+  if (!history.length) {
+    list.innerHTML = '<div class="hist-empty">No scans yet — your results will appear here.</div>';
+    return;
+  }
+  const sevStyle = s => {
+    const c = SEV_COLOR[s] || '#888';
+    return `background:${c}18;color:${c};border:1px solid ${c}40`;
+  };
+  list.innerHTML = history.map(h => `
+    <div class="hist-item">
+      <div class="hist-dot" style="background:${SEV_COLOR[h.severity]||'#888'}"></div>
+      <div class="hist-info">
+        <div class="hist-type">${h.type}</div>
+        <div class="hist-time">${h.time}</div>
+      </div>
+      ${h.severity !== 'SAFE' ? `<div class="hist-score" style="color:${SEV_COLOR[h.severity]}">${h.score}%</div>` : ''}
+      <div class="hist-sev" style="${sevStyle(h.severity)}">${h.severity}</div>
+    </div>`).join('');
+}
+
+function clearHistory() {
+  localStorage.removeItem(HIST_KEY);
+  renderHistory();
+}
+
+// ══════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════
 updateStepUI();
 loadAnalytics();
 loadDemos();
+renderHistory();
 </script>
 </body>
 </html>
