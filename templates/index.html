@@ -61,34 +61,16 @@ h1 .grad{background:linear-gradient(100deg,var(--teal),var(--blue));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .hero p{color:var(--muted);font-size:.92rem;line-height:1.65;max-width:520px}
 
-/* ── TABS ── */
-.tabs{display:flex;gap:0;background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;overflow:hidden;animation:up .5s .05s ease both}
-.tab-btn{flex:1;padding:11px 16px;background:transparent;border:none;cursor:pointer;
-  font-family:var(--sans);font-size:.84rem;font-weight:600;color:var(--muted);
-  border-right:1px solid var(--border);transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
-.tab-btn:last-child{border-right:none}
-.tab-btn.active{background:var(--card);color:var(--teal)}
-.tab-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,.02)}
-
 /* ── CARD WRAPPER ── */
 .form-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
   overflow:hidden;animation:up .5s .1s ease both}
 
-/* ── STEP HEADER ── */
+/* ── CARD HEADER ── */
 .form-card-header{padding:14px 20px;border-bottom:1px solid var(--border);
   background:rgba(0,0,0,.2);display:flex;align-items:center;justify-content:space-between}
 .form-card-title{font-family:var(--mono);font-size:.68rem;letter-spacing:1.5px;
   text-transform:uppercase;color:var(--teal)}
 .form-card-title::before{content:'// ';opacity:.5}
-.step-pills{display:flex;gap:6px}
-.step-pill{width:24px;height:4px;border-radius:2px;background:var(--dim);transition:background .3s}
-.step-pill.done{background:var(--teal2)}
-.step-pill.active{background:var(--teal)}
-
-/* ── FORM SECTIONS ── */
-.form-section{display:none;padding:20px}
-.form-section.active{display:block;animation:up .3s ease both}
 
 .field{margin-bottom:18px}
 .field:last-child{margin-bottom:0}
@@ -109,21 +91,6 @@ select:focus, input[type=text]:focus, input[type=tel]:focus, textarea.field-ta:f
 textarea.field-ta{resize:vertical;min-height:100px;line-height:1.65;font-size:.84rem}
 ::placeholder{color:var(--muted)}
 
-/* checkbox group */
-.check-group{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.check-item{display:flex;align-items:center;gap:8px;padding:9px 12px;
-  background:rgba(0,0,0,.2);border:1px solid var(--border2);border-radius:8px;
-  cursor:pointer;transition:all .15s;user-select:none}
-.check-item:hover{border-color:var(--teal2);background:rgba(0,212,170,.04)}
-.check-item.checked{border-color:var(--teal);background:rgba(0,212,170,.07)}
-.check-item input{display:none}
-.check-box{width:16px;height:16px;border:1px solid var(--border2);border-radius:4px;
-  flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  font-size:.65rem;transition:all .15s}
-.check-item.checked .check-box{background:var(--teal);border-color:var(--teal);color:#000}
-.check-label{font-size:.82rem;color:var(--muted);transition:color .15s}
-.check-item.checked .check-label{color:var(--text)}
-
 /* raw text panel */
 .raw-section{padding:20px}
 .raw-ta-wrap{position:relative}
@@ -136,10 +103,6 @@ textarea#rawMsg:focus{border-color:var(--teal)}
 /* nav buttons inside card */
 .form-nav{display:flex;align-items:center;justify-content:space-between;
   padding:14px 20px;border-top:1px solid var(--border);background:rgba(0,0,0,.15)}
-.btn-prev{background:transparent;border:1px solid var(--border2);color:var(--muted);
-  font-family:var(--sans);font-size:.84rem;padding:9px 18px;border-radius:8px;cursor:pointer;transition:all .2s}
-.btn-prev:hover{border-color:var(--text);color:var(--text)}
-.btn-prev:disabled{opacity:.3;cursor:not-allowed}
 .btn-next{background:linear-gradient(135deg,var(--teal),var(--teal2));color:#000;
   font-family:var(--sans);font-weight:700;font-size:.88rem;padding:9px 22px;
   border:none;border-radius:8px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:7px}
@@ -404,139 +367,8 @@ footer a{color:var(--teal);text-decoration:none}
     <p>Fill in what happened on the call — who called, what they claimed, what they wanted. Our engine analyses it and tells you if it's a scam.</p>
   </div>
 
-  <!-- Tab switcher -->
-  <div class="tabs">
-    <button class="tab-btn active" id="tabGuided" onclick="switchTab('guided')">📋 Step-by-Step Form</button>
-    <button class="tab-btn" id="tabRaw" onclick="switchTab('raw')">✍️ Paste Message / SMS</button>
-  </div>
-
-  <!-- ═══════ GUIDED FORM ═══════ -->
-  <div class="form-card" id="guidedCard">
-    <div class="form-card-header">
-      <div class="form-card-title" id="stepLabel">Step 1 of 3 — What happened?</div>
-      <div class="step-pills">
-        <div class="step-pill active" id="pill0"></div>
-        <div class="step-pill" id="pill1"></div>
-        <div class="step-pill" id="pill2"></div>
-      </div>
-    </div>
-
-    <!-- STEP 1: Contact details -->
-    <div class="form-section active" id="step0">
-      <div class="field">
-        <div class="field-label">How did they contact you? <span class="req">*</span></div>
-        <select id="contactMethod">
-          <option value="">— Select —</option>
-          <option value="phone call">Phone call</option>
-          <option value="WhatsApp call">WhatsApp call</option>
-          <option value="WhatsApp message">WhatsApp message</option>
-          <option value="SMS">SMS</option>
-          <option value="video call">Video call (Skype / Zoom / Google Meet)</option>
-          <option value="email">Email</option>
-        </select>
-      </div>
-      <div class="field">
-        <div class="field-label">Who did they claim to be? <span class="req">*</span></div>
-        <select id="callerClaim">
-          <option value="">— Select —</option>
-          <option value="CBI officer">CBI / Central Bureau of Investigation officer</option>
-          <option value="police officer">Police / Cyber Crime police officer</option>
-          <option value="NCB officer">NCB / Narcotics officer</option>
-          <option value="Enforcement Directorate ED officer">Enforcement Directorate (ED) officer</option>
-          <option value="TRAI telecom department of telecom officer">TRAI / Department of Telecom (DoT) officer</option>
-          <option value="bank official">Bank official (SBI / HDFC / ICICI etc.)</option>
-          <option value="income tax IT department officer">Income Tax Department officer</option>
-          <option value="lottery company prize agent">Lottery / Prize company agent</option>
-          <option value="other">Other / Unknown</option>
-        </select>
-      </div>
-      <div class="field">
-        <div class="field-label">Did they mention a specific case, crime, or reason?</div>
-        <div class="field-hint">e.g. "money laundering", "drug trafficking", "illegal SIM usage", "KYC expired"</div>
-        <input type="text" id="caseReason" placeholder="Type what they said the issue was..."/>
-      </div>
-    </div>
-
-    <!-- STEP 2: What they threatened / asked -->
-    <div class="form-section" id="step1">
-      <div class="field">
-        <div class="field-label">What did they threaten or claim would happen?</div>
-        <div class="check-group" id="threatGroup">
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="you are under arrest digital arrest warrant issued"/><div class="check-box"></div><div class="check-label">Arrest / Digital arrest</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="account will be suspended bank account blocked"/><div class="check-box"></div><div class="check-label">Bank account blocked</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="sim card blocked mobile number deactivated"/><div class="check-box"></div><div class="check-label">SIM will be blocked</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="tax arrest it raid financial irregularity"/><div class="check-box"></div><div class="check-label">Tax raid / arrest</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="warrant issued police will come"/><div class="check-box"></div><div class="check-label">Police / FIR</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="illegal activity detected narcotics"/><div class="check-box"></div><div class="check-label">Illegal activity found</div>
-          </label>
-        </div>
-      </div>
-      <div class="field">
-        <div class="field-label">What did they ask you to do?</div>
-        <div class="check-group" id="actionGroup">
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="stay on call do not disconnect do not tell anyone"/><div class="check-box"></div><div class="check-label">Stay on call / Don't disconnect</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="transfer money pay processing fee"/><div class="check-box"></div><div class="check-label">Transfer money / Pay fee</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="aadhaar otp share otp pan card verification"/><div class="check-box"></div><div class="check-label">Share OTP / Card details</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="click link to update update your kyc kyc verification"/><div class="check-box"></div><div class="check-label">Click a link</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="video call verification"/><div class="check-box"></div><div class="check-label">Join a video call</div>
-          </label>
-          <label class="check-item" onclick="toggleCheck(this)">
-            <input type="checkbox" value="do not tell anyone secrecy"/><div class="check-box"></div><div class="check-label">Keep it secret</div>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <!-- STEP 3: Extra details -->
-    <div class="form-section" id="step2">
-      <div class="field">
-        <div class="field-label">Did they mention a prize, reward, or refund?</div>
-        <select id="prizeField">
-          <option value="">— No / Not applicable —</option>
-          <option value="you have won lucky winner prize money lucky draw">Yes — they said I won a prize / lottery</option>
-          <option value="income tax refund approved tds refund itr refund click to claim refund">Yes — they said I have a tax / TDS refund</option>
-          <option value="reward points redeemable cashback">Yes — they mentioned cashback / reward points</option>
-        </select>
-      </div>
-      <div class="field">
-        <div class="field-label">Did they mention a money amount?</div>
-        <input type="text" id="moneyAmt" placeholder="e.g. ₹4 crore, Rs 18,450, Rs 2,500 fee..."/>
-      </div>
-      <div class="field">
-        <div class="field-label">Anything else they said? (optional)</div>
-        <div class="field-hint">Any extra phrases, names, case numbers, website links they sent</div>
-        <textarea class="field-ta" id="extraDetails" placeholder="e.g. They sent a link: sbi-kyc.xyz/verify&#10;They said my Aadhaar is linked to drug money..."></textarea>
-      </div>
-    </div>
-
-    <div class="form-nav">
-      <button class="btn-prev" id="btnPrev" onclick="prevStep()" disabled>← Back</button>
-      <button class="btn-next" id="btnNext" onclick="nextStep()">Next →</button>
-    </div>
-  </div>
-
-  <!-- ═══════ RAW / PASTE PANEL ═══════ -->
-  <div class="form-card" id="rawCard" style="display:none">
+  <!-- ═══════ PASTE / SCAN PANEL ═══════ -->
+  <div class="form-card" id="rawCard">
     <div class="form-card-header">
       <div class="form-card-title">Paste Message or Describe the Call</div>
     </div>
@@ -636,111 +468,6 @@ footer a{color:var(--teal);text-decoration:none}
 </div>
 
 <script>
-// ══════════════════════════════════════
-//  TAB SWITCH
-// ══════════════════════════════════════
-function switchTab(tab) {
-  document.getElementById('tabGuided').classList.toggle('active', tab==='guided');
-  document.getElementById('tabRaw').classList.toggle('active', tab==='raw');
-  document.getElementById('guidedCard').style.display = tab==='guided' ? '' : 'none';
-  document.getElementById('rawCard').style.display    = tab==='raw'    ? '' : 'none';
-  clearResult();
-}
-
-// ══════════════════════════════════════
-//  CHECKBOX TOGGLE
-// ══════════════════════════════════════
-function toggleCheck(el) {
-  el.classList.toggle('checked');
-  el.querySelector('input').checked = el.classList.contains('checked');
-  el.querySelector('.check-box').textContent = el.classList.contains('checked') ? '✓' : '';
-}
-
-// ══════════════════════════════════════
-//  STEP NAVIGATION
-// ══════════════════════════════════════
-let currentStep = 0;
-const STEPS = 3;
-
-function updateStepUI() {
-  for (let i = 0; i < STEPS; i++) {
-    document.getElementById(`step${i}`).classList.toggle('active', i === currentStep);
-    const pill = document.getElementById(`pill${i}`);
-    pill.classList.remove('active','done');
-    if (i < currentStep) pill.classList.add('done');
-    if (i === currentStep) pill.classList.add('active');
-  }
-  document.getElementById('btnPrev').disabled = currentStep === 0;
-  const isLast = currentStep === STEPS - 1;
-  const btn = document.getElementById('btnNext');
-  btn.textContent = isLast ? '' : 'Next →';
-  if (isLast) { btn.innerHTML = '🔍 Analyse Report'; }
-  const labels = ['Step 1 of 3 — What happened?','Step 2 of 3 — What did they threaten?','Step 3 of 3 — Extra details'];
-  document.getElementById('stepLabel').textContent = labels[currentStep];
-}
-
-function nextStep() {
-  if (currentStep === 0) {
-    if (!document.getElementById('contactMethod').value || !document.getElementById('callerClaim').value) {
-      alert('Please select how they contacted you and who they claimed to be.');
-      return;
-    }
-  }
-  if (currentStep < STEPS - 1) {
-    currentStep++;
-    updateStepUI();
-  } else {
-    runGuidedScan();
-  }
-}
-
-function prevStep() {
-  if (currentStep > 0) { currentStep--; updateStepUI(); }
-}
-
-// ══════════════════════════════════════
-//  BUILD DETECTION STRING FROM FORM
-// ══════════════════════════════════════
-function buildDetectionString() {
-  const parts = [];
-
-  const method = document.getElementById('contactMethod').value;
-  const caller = document.getElementById('callerClaim').value;
-  const reason = document.getElementById('caseReason').value.trim();
-  const prize  = document.getElementById('prizeField').value;
-  const money  = document.getElementById('moneyAmt').value.trim();
-  const extra  = document.getElementById('extraDetails').value.trim();
-
-  if (method) parts.push(`Contact method: ${method}.`);
-  if (caller) parts.push(`Caller claimed to be: ${caller}.`);
-  if (reason) parts.push(`They said the issue was: ${reason}.`);
-
-  // Checkboxes — threats
-  document.querySelectorAll('#threatGroup .check-item.checked input').forEach(el => {
-    parts.push(el.value);
-  });
-
-  // Checkboxes — actions demanded
-  document.querySelectorAll('#actionGroup .check-item.checked input').forEach(el => {
-    parts.push(el.value);
-  });
-
-  if (prize)  parts.push(prize);
-  if (money)  parts.push(`amount mentioned: ${money}`);
-  if (extra)  parts.push(extra);
-
-  return parts.join(' ');
-}
-
-async function runGuidedScan() {
-  const text = buildDetectionString();
-  if (text.trim().length < 10) {
-    alert('Please fill in at least the contact method, who they claimed to be, and what they threatened.');
-    return;
-  }
-  await scan(text);
-}
-
 async function scanRaw() {
   const msg = document.getElementById('rawMsg').value.trim();
   if (!msg) { alert('Please paste or type a message first.'); return; }
@@ -907,22 +634,8 @@ function clearResult() {
 }
 
 function resetAll() {
-  // Reset form
-  currentStep = 0;
-  updateStepUI();
-  document.getElementById('contactMethod').value = '';
-  document.getElementById('callerClaim').value   = '';
-  document.getElementById('caseReason').value    = '';
-  document.getElementById('prizeField').value    = '';
-  document.getElementById('moneyAmt').value      = '';
-  document.getElementById('extraDetails').value  = '';
-  document.querySelectorAll('.check-item.checked').forEach(el => {
-    el.classList.remove('checked');
-    el.querySelector('input').checked = false;
-    el.querySelector('.check-box').textContent = '';
-  });
-  // Switch to guided tab
-  switchTab('guided');
+  document.getElementById('rawMsg').value = '';
+  document.getElementById('rawCount').textContent = '0 characters';
   clearResult();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1043,7 +756,6 @@ function clearHistory() {
 // ══════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════
-updateStepUI();
 loadAnalytics();
 loadDemos();
 renderHistory();
