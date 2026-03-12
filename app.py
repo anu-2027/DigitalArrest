@@ -676,7 +676,11 @@ _DEMO_MESSAGES = {
 # ═══════════════════════════════════════
 
 @app.route("/")
-def index():
+def landing():
+    return render_template("landing.html")
+
+@app.route("/detector")
+def detector():
     return render_template("index.html")
 
 
